@@ -22,10 +22,8 @@ interface GameActions {
   createRoom: (playerName: string) => Promise<string>;
   joinRoom: (roomCode: string, playerName: string) => Promise<boolean>;
   leaveRoom: () => void;
-
   startGame: () => Promise<void>;
-
-  // Utility actions
+  subscribeToRoom: (roomId: string) => () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
 }
@@ -90,6 +88,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isLoading: false,
       });
 
+      // リアルタイム購読を開始
+      get().subscribeToRoom(updatedRoom.id);
+
       return roomCode;
     } catch (error) {
       console.error("チーム作成の際に，エラーが発生しました．", error);
@@ -112,16 +113,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (roomError || !room) throw new Error("ルームが見つかりません");
       if (room.status !== 'waiting') throw new Error("このルームは既にゲーム中です");
 
-      // プレイヤーの名前がかぶっていないか確認
-      const { data: existingPlayers } = await supabase
+      // 既存のプレイヤー情報を取得
+      const { data: existingPlayers, error: playersError } = await supabase
         .from('players')
         .select()
-        .eq('room_id', room.id)
+        .eq('room_id', room.id);
+      if (playersError) throw playersError;
+
+      // プレイヤーの名前がかぶっていないか確認
       if (existingPlayers?.some(p => p.name === playerName)) {
-        set({ error: "この名前は既に利用されています．別の名前を選んでください．", isLoading: false });
+        set({ error: "この名前は既に利用されています。別の名前を選んでください。", isLoading: false });
         return false;
       }
 
+      // 新しいプレイヤーを作成
       const avatarColors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#F97316'];
       const avatarColor = avatarColors[Math.floor(Math.random() * avatarColors.length)];
       const { data: player, error: playerError } = await supabase
@@ -138,10 +143,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       set({
         currentRoom: room,
-        players: [...get().players, player],
+        players: [...(existingPlayers || []), player],
         currentPlayer: player,
         isLoading: false,
       });
+
+      // リアルタイム購読を開始
+      get().subscribeToRoom(room.id);
 
       return true;
     } catch (error) {
@@ -152,7 +160,64 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   // 部屋を退出する関数
-  leaveRoom: () => {
+  leaveRoom: async () => {
+    const { currentPlayer } = get();
+    if (currentPlayer) {
+      try {
+        await supabase
+          .from('players')
+          .delete()
+          .eq('id', currentPlayer.id);
+        
+        set({
+          currentRoom: null,
+          currentPlayer: null,
+          players: [],
+          currentGame: null,
+          currentTopic: null,
+          playerNumbers: [],
+          playerOrder: [],
+        });
+      } catch (error) {
+        console.error("退室エラー:", error);
+      }
+    }
+  },
+
+  // リアルタイム購読を開始する関数(ゲーム開始の関数と開始の関数で呼び出す)
+  subscribeToRoom: (roomId: string) => {
+    const channel = supabase
+      .channel(`room-${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'players',
+          filter: `room_id=eq.${roomId}`,
+        },
+        async (payload) => {
+          const { players } = get();
+          
+          if (payload.eventType === 'INSERT') {
+            const newPlayer = payload.new as Player;
+            set({ players: [...players, newPlayer] });
+          } else if (payload.eventType === 'DELETE') {
+            set({ players: players.filter(p => p.id !== payload.old.id) });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedPlayer = payload.new as Player;
+            set({
+              players: players.map(p => p.id === updatedPlayer.id ? updatedPlayer : p)
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    // クリーンアップ関数を返す
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   startGame: async () => {

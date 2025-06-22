@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { GameState } from "@/lib/supabase"
 import { useGameStore } from "@/stores/gameStore"
 import TitleScreen from "@/components/title-screen"
