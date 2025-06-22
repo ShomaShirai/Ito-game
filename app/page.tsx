@@ -53,7 +53,7 @@ export default function ItoGame() {
     }
   }
 
-  // ゲーム開始（ホストのみ）
+  // ゲーム開始を押したらゲームのジャンルを選ぶことができる（ホストのみ）
   const handleStartGame = async () => {
     // ジャンル選択画面に遷移
     setGameState("genre-select")
@@ -143,6 +143,13 @@ export default function ItoGame() {
             onGenreSelect={handleGenreSelect}
             onBackToWaiting={() => setGameState("create-team")}
           />
+        )}
+
+        {gameState === "playing" && currentRoom && (
+          <div className="text-white text-xl text-center">
+            ゲームが開始されました！<br />
+            ここにゲームの内容を表示するコンポーネントを追加してください。
+          </div>
         )}
       </div>
     </div>
