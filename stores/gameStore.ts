@@ -44,6 +44,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isLoading: false,
   error: null,
 
+  // 部屋を作成する関数
   createRoom: async (playerName: string) => {
     set({ isLoading: true, error: null });
 
@@ -97,23 +98,61 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  // 部屋に参加する関数
   joinRoom: async (roomCode: string, playerName: string) => {
     set({ isLoading: true, error: null });
-    // TODO: 実装予定
-    set({ isLoading: false });
-    return false;
+    
+    try {
+      // 部屋の情報を取得
+      const { data: room, error: roomError } = await supabase
+        .from('rooms')
+        .select()
+        .eq('room_code', roomCode.toUpperCase())
+        .single();
+      if (roomError || !room) throw new Error("ルームが見つかりません");
+      if (room.status !== 'waiting') throw new Error("このルームは既にゲーム中です");
+
+      // プレイヤーの名前がかぶっていないか確認
+      const { data: existingPlayers } = await supabase
+        .from('players')
+        .select()
+        .eq('room_id', room.id)
+      if (existingPlayers?.some(p => p.name === playerName)) {
+        set({ error: "この名前は既に利用されています．別の名前を選んでください．", isLoading: false });
+        return false;
+      }
+
+      const avatarColors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#F97316'];
+      const avatarColor = avatarColors[Math.floor(Math.random() * avatarColors.length)];
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .insert({
+          room_id: room.id,
+          name: playerName,
+          avatar_color: avatarColor,
+          is_host: false,
+        })
+        .select()
+        .single();
+      if (playerError) throw playerError;
+
+      set({
+        currentRoom: room,
+        players: [...get().players, player],
+        currentPlayer: player,
+        isLoading: false,
+      });
+
+      return true;
+    } catch (error) {
+      console.error("チーム参加の際にエラーが発生しました", error);
+      set({ error: (error as Error).message, isLoading: false });
+      return false;
+    }
   },
 
+  // 部屋を退出する関数
   leaveRoom: () => {
-    set({
-      currentRoom: null,
-      players: [],
-      currentPlayer: null,
-      currentGame: null,
-      currentTopic: null,
-      playerNumbers: [],
-      playerOrder: [],
-    });
   },
 
   startGame: async () => {
