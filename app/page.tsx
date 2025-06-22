@@ -8,6 +8,7 @@ import CreateTeamScreen from "@/components/create-team-screen"
 import JoinTeamScreen from "@/components/join-team-screen"
 import WaitingScreen from "@/components/waiting-screen"
 import GenreSelectScreen from "@/components/genre-select-screen"
+import WatchOwnNumber from "@/components/watch-own-number"
 
 export default function ItoGame() {
   const [gameState, setGameState] = useState<GameState>("title")
@@ -146,10 +147,7 @@ export default function ItoGame() {
         )}
 
         {gameState === "playing" && currentRoom && (
-          <div className="text-white text-xl text-center">
-            ゲームが開始されました！<br />
-            ここにゲームの内容を表示するコンポーネントを追加してください。
-          </div>
+          <WatchOwnNumber/>
         )}
       </div>
     </div>
