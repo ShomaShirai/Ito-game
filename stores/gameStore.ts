@@ -158,8 +158,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       // リアルタイム購読を開始
       const unsubscribe = get().subscribeToRoom(room.id);
-      console.log("リアルタイム購読を開始しました", unsubscribe);
-
       set({ subscription: unsubscribe });
 
       return true;
@@ -221,7 +219,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
-          console.log('リアルタイム更新:', payload); // デバッグ用
           const { players } = get();
           
           if (payload.eventType === 'INSERT') {
@@ -240,9 +237,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
         }
       )
-      .subscribe((status) => {
-        console.log('購読状態:', status); // デバッグ用
-      });
+      .subscribe();
 
     // クリーンアップ関数を返す
     return () => {
