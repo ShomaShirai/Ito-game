@@ -7,7 +7,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ゲーム状態の型定義
-export type GameState = "title" | "create-team" | "join-team" | "waiting" | "playing";
+export type GameState = "title" | "create-team" | "join-team" | "waiting" | "genre-select" | "playing";
+
+// ジャンルの型定義
+export type Genre = "恋愛" | "盛り上がる" | "エッチ";
 
 // 以下はデータベースの型定義を行う
 export interface Room {

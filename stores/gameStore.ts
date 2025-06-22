@@ -6,7 +6,7 @@ interface GameActions {
   createRoom: (playerName: string) => Promise<string>;
   joinRoom: (roomCode: string, playerName: string) => Promise<boolean>;
   leaveRoom: () => void;
-  startGame: () => Promise<void>;
+  startGame: (selectedGenre: string) => Promise<void>;
   subscribeToRoom: (roomId: string) => () => void;
   unsubscribeFromRoom: () => void;
   setError: (error: string | null) => void;
@@ -200,6 +200,86 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  // ゲームを開始する際の関数
+  startGame: async (selectedGenre: string) => {
+    const { currentRoom, currentPlayer, players } = get();
+    if (!currentRoom || !currentPlayer?.is_host) return;
+
+    set({ isLoading: true, error: null });
+
+    try {
+      // ルームのステータスを更新
+      await supabase
+        .from('rooms')
+        .update({ status: 'playing', current_round: 1 })
+        .eq('id', currentRoom.id);
+
+      // ジャンルに応じたトピック番号の範囲を決定
+      let topicRange = { min: 1, max: 5 };
+      if (selectedGenre === '恋愛') {
+        topicRange = { min: 1, max: 20 };
+      } else if (selectedGenre === '盛り上がる') {
+        topicRange = { min: 21, max: 40 };
+      } else if (selectedGenre === 'エッチ') {
+        topicRange = { min: 41, max: 60 };
+      }
+
+      // ランダムなトピックを選択
+      const randomTopicNumber = Math.floor(Math.random() * (topicRange.max - topicRange.min + 1)) + topicRange.min;
+      
+      // トピック情報を取得
+      const { data: topic, error: topicError } = await supabase
+        .from('topics')
+        .select()
+        .eq('number', randomTopicNumber)
+        .single();
+      if (topicError) throw topicError;
+
+      // ゲームを作成
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .insert({
+          room_id: currentRoom.id,
+          round_number: 1,
+          topic_id: topic.id,
+          topic_number: topic.number,
+          phase: 'discuss',
+          player_order: players.map(p => p.id),
+          correct_order: []
+        })
+        .select()
+        .single();
+      if (gameError) throw gameError;
+
+      // 各プレイヤーに1-100の数字を割り当て
+      const playerNumbersToInsert = players.map(player => ({
+        game_id: game.id,
+        player_id: player.id,
+        number: Math.floor(Math.random() * 100) + 1,
+        position: null
+      }));
+
+      const { data: insertedPlayerNumbers, error: numbersError } = await supabase
+        .from('player_numbers')
+        .insert(playerNumbersToInsert)
+        .select();
+      if (numbersError) throw numbersError;
+
+      // 状態を更新
+      set({
+        currentGame: game,
+        currentTopic: topic,
+        playerNumbers: insertedPlayerNumbers || [],
+        isLoading: false,
+      });
+
+    } catch (error) {
+      console.error("ゲーム開始エラー:", error);
+      set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false });
+      throw error;
+    }
+  },
+
   // リアルタイム購読を開始する関数
   subscribeToRoom: (roomId: string) => {
     // 既存の購読があれば停止
@@ -252,12 +332,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       subscription();
       set({ subscription: null });
     }
-  },
-
-  startGame: async () => {
-    set({ isLoading: true, error: null });
-    // TODO: 実装予定
-    set({ isLoading: false });
   },
 
   setError: (error: string | null) => {

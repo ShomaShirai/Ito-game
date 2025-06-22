@@ -7,6 +7,7 @@ import TitleScreen from "@/components/title-screen"
 import CreateTeamScreen from "@/components/create-team-screen"
 import JoinTeamScreen from "@/components/join-team-screen"
 import WaitingScreen from "@/components/waiting-screen"
+import GenreSelectScreen from "@/components/genre-select-screen"
 
 export default function ItoGame() {
   const [gameState, setGameState] = useState<GameState>("title")
@@ -54,10 +55,15 @@ export default function ItoGame() {
 
   // ゲーム開始（ホストのみ）
   const handleStartGame = async () => {
+    // ジャンル選択画面に遷移
+    setGameState("genre-select")
+  }
+
+  // ジャンル選択後のゲーム開始
+  const handleGenreSelect = async (genre: string) => {
     try {
-      await startGame()
-      // ゲーム画面への遷移は後で実装
-      alert("ゲーム開始！（実装予定）")
+      await startGame(genre)
+      setGameState("playing")
     } catch (err) {
       console.error("ゲーム開始エラー:", err)
     }
@@ -129,6 +135,13 @@ export default function ItoGame() {
             teamId={currentRoom.room_code}
             players={players}
             onBackToTitle={backToTitle}
+          />
+        )}
+
+        {gameState === "genre-select" && currentRoom && (
+          <GenreSelectScreen
+            onGenreSelect={handleGenreSelect}
+            onBackToWaiting={() => setGameState("create-team")}
           />
         )}
       </div>
