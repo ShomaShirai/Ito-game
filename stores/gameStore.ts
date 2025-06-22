@@ -1,5 +1,17 @@
 import { create } from "zustand";
 import { supabase, Room, Player, Game, PlayerNumber, Topic } from '@/lib/supabase';
+import { REALTIME_LISTEN_TYPES } from "@supabase/supabase-js";
+
+interface GameActions {
+  createRoom: (playerName: string) => Promise<string>;
+  joinRoom: (roomCode: string, playerName: string) => Promise<boolean>;
+  leaveRoom: () => void;
+  startGame: () => Promise<void>;
+  subscribeToRoom: (roomId: string) => () => void;
+  unsubscribeFromRoom: () => void;
+  setError: (error: string | null) => void;
+  setLoading: (loading: boolean) => void;
+}
 
 interface GameState {
   // Room state
@@ -16,16 +28,9 @@ interface GameState {
   // UI state
   isLoading: boolean;
   error: string | null;
-}
 
-interface GameActions {
-  createRoom: (playerName: string) => Promise<string>;
-  joinRoom: (roomCode: string, playerName: string) => Promise<boolean>;
-  leaveRoom: () => void;
-  startGame: () => Promise<void>;
-  subscribeToRoom: (roomId: string) => () => void;
-  setError: (error: string | null) => void;
-  setLoading: (loading: boolean) => void;
+  // リアルタイム購読の参照を保持
+  subscription: any;
 }
 
 type GameStore = GameState & GameActions;
@@ -41,6 +46,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerOrder: [],
   isLoading: false,
   error: null,
+  subscription: null,
 
   // 部屋を作成する関数
   createRoom: async (playerName: string) => {
@@ -89,7 +95,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
 
       // リアルタイム購読を開始
-      get().subscribeToRoom(updatedRoom.id);
+      const unsubscribe = get().subscribeToRoom(updatedRoom.id);
+      set({ subscription: unsubscribe });
 
       return roomCode;
     } catch (error) {
@@ -141,6 +148,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .single();
       if (playerError) throw playerError;
 
+      // 状態を更新（既存プレイヤー + 新プレイヤー）
       set({
         currentRoom: room,
         players: [...(existingPlayers || []), player],
@@ -149,7 +157,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
 
       // リアルタイム購読を開始
-      get().subscribeToRoom(room.id);
+      const unsubscribe = get().subscribeToRoom(room.id);
+      console.log("リアルタイム購読を開始しました", unsubscribe);
+
+      set({ subscription: unsubscribe });
 
       return true;
     } catch (error) {
@@ -161,7 +172,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // 部屋を退出する関数
   leaveRoom: async () => {
-    const { currentPlayer } = get();
+    const { currentPlayer, subscription } = get();
+    
+    // リアルタイム購読を停止
+    if (subscription) {
+      subscription();
+      set({ subscription: null });
+    }
+    
     if (currentPlayer) {
       try {
         await supabase
@@ -184,8 +202,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  // リアルタイム購読を開始する関数(ゲーム開始の関数と開始の関数で呼び出す)
+  // リアルタイム購読を開始する関数
   subscribeToRoom: (roomId: string) => {
+    // 既存の購読があれば停止
+    const { subscription } = get();
+    if (subscription) {
+      subscription();
+    }
+
     const channel = supabase
       .channel(`room-${roomId}`)
       .on(
@@ -197,11 +221,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
+          console.log('リアルタイム更新:', payload); // デバッグ用
           const { players } = get();
           
           if (payload.eventType === 'INSERT') {
             const newPlayer = payload.new as Player;
-            set({ players: [...players, newPlayer] });
+            // 重複チェック
+            if (!players.some(p => p.id === newPlayer.id)) {
+              set({ players: [...players, newPlayer] });
+            }
           } else if (payload.eventType === 'DELETE') {
             set({ players: players.filter(p => p.id !== payload.old.id) });
           } else if (payload.eventType === 'UPDATE') {
@@ -212,12 +240,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('購読状態:', status); // デバッグ用
+      });
 
     // クリーンアップ関数を返す
     return () => {
       supabase.removeChannel(channel);
     };
+  },
+
+  // 購読停止関数
+  unsubscribeFromRoom: () => {
+    const { subscription } = get();
+    if (subscription) {
+      subscription();
+      set({ subscription: null });
+    }
   },
 
   startGame: async () => {

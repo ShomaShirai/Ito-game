@@ -21,6 +21,7 @@ export default function ItoGame() {
     joinRoom,
     leaveRoom,
     startGame,
+    unsubscribeFromRoom,
     isLoading,
     error,
   } = useGameStore()
@@ -69,6 +70,13 @@ export default function ItoGame() {
     setPlayerName("")
     setJoinTeamId("")
   }
+
+  // コンポーネントのアンマウント時にクリーンアップ
+  useEffect(() => {
+    return () => {
+      unsubscribeFromRoom()
+    }
+  }, [unsubscribeFromRoom])
 
   if (isLoading) {
     return (
