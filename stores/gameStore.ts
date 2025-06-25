@@ -213,15 +213,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .from('rooms')
         .update({ status: 'playing', current_round: 1 })
         .eq('id', currentRoom.id);
+      console.log("ルームのステータスを更新しました:", currentRoom.id);
 
       // ジャンルに応じたトピック番号の範囲を決定
       let topicRange = { min: 1, max: 5 };
       if (selectedGenre === '恋愛') {
-        topicRange = { min: 1, max: 20 };
+        topicRange = { min: 1, max: 5 };
       } else if (selectedGenre === '盛り上がる') {
-        topicRange = { min: 21, max: 40 };
+        topicRange = { min: 21, max: 25 };
       } else if (selectedGenre === 'エッチ') {
-        topicRange = { min: 41, max: 60 };
+        topicRange = { min: 41, max: 45 };
       }
 
       // ランダムなトピックを選択
@@ -234,6 +235,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .eq('number', randomTopicNumber)
         .single();
       if (topicError) throw topicError;
+      console.log("選択されたトピック:", topic);
 
       // ゲームを作成
       const { data: game, error: gameError } = await supabase
@@ -250,6 +252,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .select()
         .single();
       if (gameError) throw gameError;
+      console.log("ゲームの作成が完了しました:", game);
 
       // 各プレイヤーに1-100の数字を割り当て
       const playerNumbersToInsert = players.map(player => ({
@@ -258,12 +261,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         number: Math.floor(Math.random() * 100) + 1,
         position: null
       }));
+      console.log("プレイヤーの数字を生成:", playerNumbersToInsert);
 
       const { data: insertedPlayerNumbers, error: numbersError } = await supabase
         .from('player_numbers')
         .insert(playerNumbersToInsert)
         .select();
       if (numbersError) throw numbersError;
+      console.log("プレイヤーの数字が挿入されました:", insertedPlayerNumbers);
 
       // 状態を更新
       set({

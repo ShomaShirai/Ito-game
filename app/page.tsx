@@ -19,6 +19,8 @@ export default function ItoGame() {
     currentRoom,
     players,
     currentPlayer,
+    currentTopic,
+    playerNumbers,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -147,7 +149,12 @@ export default function ItoGame() {
         )}
 
         {gameState === "playing" && currentRoom && (
-          <WatchOwnNumber/>
+          <WatchOwnNumber
+            currentPlayer={currentPlayer}
+            playerNumbers={playerNumbers}
+            currentTopic={currentTopic}
+            onBackToTitle={backToTitle}
+          />
         )}
       </div>
     </div>
