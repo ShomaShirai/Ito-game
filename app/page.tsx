@@ -8,7 +8,7 @@ import CreateTeamScreen from "@/components/create-team-screen"
 import JoinTeamScreen from "@/components/join-team-screen"
 import WaitingScreen from "@/components/waiting-screen"
 import GenreSelectScreen from "@/components/genre-select-screen"
-import WatchOwnNumber from "@/components/watch-own-number"
+import WhileGameBase from "@/components/while-game-base"
 
 export default function ItoGame() {
   const [gameState, setGameState] = useState<GameState>("title")
@@ -165,7 +165,8 @@ export default function ItoGame() {
         )}
 
         {gameState === "playing" && currentRoom && currentTopic && playerNumbers.length > 0 && (
-          <WatchOwnNumber
+          <WhileGameBase
+            currentGame={currentGame}
             currentPlayer={currentPlayer}
             playerNumbers={playerNumbers}
             currentTopic={currentTopic}

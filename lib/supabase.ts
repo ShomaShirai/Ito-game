@@ -9,6 +9,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // ゲーム状態の型定義
 export type GameState = "title" | "create-team" | "join-team" | "waiting" | "genre-select" | "playing";
 
+// ゲームフェーズの型定義
+export type GamePhase = "discuss" | "arrange" | "reveal" | "result";
+
 // ジャンルの型定義
 export type Genre = "恋愛" | "盛り上がる" | "エッチ";
 

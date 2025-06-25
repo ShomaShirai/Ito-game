@@ -8,7 +8,9 @@ interface GameActions {
   leaveRoom: () => void;
   startGame: (selectedGenre: string) => Promise<void>;
   sendMatchWord: (matchWord: string) => Promise<void>;
-  subscribeToRoom: (roomId: string) => () => void;
+  subscribeToPlayers: (roomId: string) => () => void;
+  subscribeToGameStart: (roomId: string) => () => void;
+  subscribeToGamePlay: (roomId: string) => () => void;
   unsubscribeFromRoom: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
@@ -31,7 +33,9 @@ interface GameState {
   error: string | null;
 
   // リアルタイム購読の参照を保持
-  subscription: any;
+  playersSubscription: any;
+  gameStartSubscription: any;
+  gamePlaySubscription: any;
 }
 
 type GameStore = GameState & GameActions;
@@ -47,7 +51,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerOrder: [],
   isLoading: false,
   error: null,
-  subscription: null,
+  playersSubscription: null,
+  gameStartSubscription: null,
+  gamePlaySubscription: null,
 
   // 部屋を作成する関数
   createRoom: async (playerName: string) => {
@@ -95,9 +101,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isLoading: false,
       });
 
-      // リアルタイム購読を開始
-      const unsubscribe = get().subscribeToRoom(updatedRoom.id);
-      set({ subscription: unsubscribe });
+      // プレイヤー参加の購読を開始
+      const playersUnsubscribe = get().subscribeToPlayers(updatedRoom.id);
+      // ゲーム開始の購読を開始
+      const gameStartUnsubscribe = get().subscribeToGameStart(updatedRoom.id);
+      
+      set({ 
+        playersSubscription: playersUnsubscribe,
+        gameStartSubscription: gameStartUnsubscribe 
+      });
 
       return roomCode;
     } catch (error) {
@@ -157,9 +169,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isLoading: false,
       });
 
-      // リアルタイム購読を開始
-      const unsubscribe = get().subscribeToRoom(room.id);
-      set({ subscription: unsubscribe });
+      // プレイヤー参加の購読を開始
+      const playersUnsubscribe = get().subscribeToPlayers(room.id);
+      // ゲーム開始の購読を開始
+      const gameStartUnsubscribe = get().subscribeToGameStart(room.id);
+      
+      set({ 
+        playersSubscription: playersUnsubscribe,
+        gameStartSubscription: gameStartUnsubscribe 
+      });
 
       return true;
     } catch (error) {
@@ -171,13 +189,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // 部屋を退出する関数
   leaveRoom: async () => {
-    const { currentPlayer, subscription } = get();
+    const { currentPlayer, playersSubscription, gameStartSubscription, gamePlaySubscription } = get();
     
-    // リアルタイム購読を停止
-    if (subscription) {
-      subscription();
-      set({ subscription: null });
-    }
+    // 全ての購読を停止
+    if (playersSubscription) playersSubscription();
+    if (gameStartSubscription) gameStartSubscription();
+    if (gamePlaySubscription) gamePlaySubscription();
+    
+    set({ 
+      playersSubscription: null,
+      gameStartSubscription: null,
+      gamePlaySubscription: null 
+    });
     
     if (currentPlayer) {
       try {
@@ -274,6 +297,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isLoading: false,
       });
 
+      // ゲーム中の購読を開始
+      const gamePlayUnsubscribe = get().subscribeToGamePlay(currentRoom.id);
+      set({ gamePlaySubscription: gamePlayUnsubscribe });
+
     } catch (error) {
       console.error("ゲーム開始エラー:", error);
       set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false });
@@ -316,16 +343,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  // リアルタイム購読を開始する関数
-  subscribeToRoom: (roomId: string) => {
-    // 既存の購読があれば停止
-    const { subscription } = get();
-    if (subscription) {
-      subscription();
-    }
-
+  // 新しい人がチームに入ってきたタイミングでsubscribeする関数
+  subscribeToPlayers: (roomId: string) => {
+    console.log('プレイヤー購読開始:', roomId);
+    
     const channel = supabase
-      .channel(`room-${roomId}`) // リアルタイム購読をしてルームに新たに入ってくる人を購読
+      .channel(`players-${roomId}`)
       .on(
         'postgres_changes',
         {
@@ -335,24 +358,44 @@ export const useGameStore = create<GameStore>((set, get) => ({
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
+          console.log('プレイヤー変更:', payload);
           const { players } = get();
           
           if (payload.eventType === 'INSERT') {
             const newPlayer = payload.new as Player;
             if (!players.some(p => p.id === newPlayer.id)) {
+              console.log('新しいプレイヤー追加:', newPlayer.name);
               set({ players: [...players, newPlayer] });
             }
           } else if (payload.eventType === 'DELETE') {
+            console.log('プレイヤー削除:', payload.old);
             set({ players: players.filter(p => p.id !== payload.old.id) });
           } else if (payload.eventType === 'UPDATE') {
             const updatedPlayer = payload.new as Player;
+            console.log('プレイヤー更新:', updatedPlayer.name);
             set({
               players: players.map(p => p.id === updatedPlayer.id ? updatedPlayer : p)
             });
           }
         }
       )
-      .on( // リアルタイムで，ゲームが開始した際に画面が遷移するように変更する
+      .subscribe((status) => {
+        console.log('プレイヤー購読状態:', status);
+      });
+
+    return () => {
+      console.log('プレイヤー購読停止');
+      supabase.removeChannel(channel);
+    };
+  },
+
+  // ゲームを開始した際にホスト以外の画面も遷移できるようにする関数
+  subscribeToGameStart: (roomId: string) => {
+    console.log('ゲーム開始購読開始:', roomId);
+    
+    const channel = supabase
+      .channel(`game-start-${roomId}`)
+      .on(
         'postgres_changes',
         {
           event: 'UPDATE',
@@ -361,6 +404,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           filter: `id=eq.${roomId}`,
         },
         async (payload) => {
+          console.log('ルーム状態更新:', payload);
           const updatedRoom = payload.new as Room;
           
           // ルーム状態を更新
@@ -368,6 +412,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           
           // ゲームが開始された場合、ゲーム情報を取得
           if (updatedRoom.status === 'playing') {
+            console.log('ゲーム開始検出 - ゲーム情報取得開始');
             try {
               // 最新のゲーム情報を取得
               const { data: game, error: gameError } = await supabase
@@ -377,28 +422,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 .single();
               
               if (!gameError && game) {
+                console.log('ゲーム情報取得成功:', game);
+                
                 // トピック情報を取得
                 const { data: topic, error: topicError } = await supabase
                   .from('topics')
                   .select()
                   .eq('id', game.topic_id)
                   .single();
-                console.log('トピック情報:', topic);
                 
                 if (!topicError && topic) {
+                  console.log('トピック情報取得成功:', topic);
+                  
                   // プレイヤー数字情報を取得
                   const { data: playerNumbers, error: numbersError } = await supabase
                     .from('player_numbers')
                     .select()
                     .eq('game_id', game.id);
-                  console.log('プレイヤー数字情報:', playerNumbers);
                   
                   if (!numbersError && playerNumbers) {
+                    console.log('プレイヤー数字情報取得成功:', playerNumbers);
+                    
                     set({
                       currentGame: game,
                       currentTopic: topic,
                       playerNumbers: playerNumbers,
                     });
+
+                    // ゲーム中の購読を開始
+                    const gamePlayUnsubscribe = get().subscribeToGamePlay(roomId);
+                    set({ gamePlaySubscription: gamePlayUnsubscribe });
                   }
                 }
               }
@@ -409,21 +462,97 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       )
       .subscribe((status) => {
-        console.log('購読状態:', status);
+        console.log('ゲーム開始購読状態:', status);
       });
 
-    // クリーンアップ関数を返す
     return () => {
+      console.log('ゲーム開始購読停止');
+      supabase.removeChannel(channel);
+    };
+  },
+
+  // ゲーム中のリアルタイム購読を行う関数
+  subscribeToGamePlay: (roomId: string) => {
+    console.log('ゲーム中購読開始:', roomId);
+    
+    const { currentGame } = get();
+    if (!currentGame) {
+      console.log('currentGameが存在しないため購読をスキップ');
+      return () => {};
+    }
+
+    const channel = supabase
+      .channel(`game-play-${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games',
+          filter: `room_id=eq.${roomId}`,
+        },
+        async (payload) => {
+          console.log('ゲーム状態更新:', payload);
+          
+          if (payload.eventType === 'UPDATE') {
+            const updatedGame = payload.new as Game;
+            set({ currentGame: updatedGame });
+            
+            // フェーズが変更された場合の追加処理
+            if (updatedGame.phase) {
+              console.log('フェーズ変更:', updatedGame.phase);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'player_numbers',
+          filter: `game_id=eq.${currentGame.id}`,
+        },
+        async (payload) => {
+          console.log('プレイヤー数字更新:', payload);
+          
+          if (payload.eventType === 'UPDATE') {
+            const updatedPlayerNumber = payload.new as PlayerNumber;
+            const { playerNumbers } = get();
+            
+            // ローカル状態を更新
+            const updatedPlayerNumbers = playerNumbers.map(pn => 
+              pn.id === updatedPlayerNumber.id ? updatedPlayerNumber : pn
+            );
+            set({ playerNumbers: updatedPlayerNumbers });
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('ゲーム中購読状態:', status);
+      });
+
+    return () => {
+      console.log('ゲーム中購読停止');
       supabase.removeChannel(channel);
     };
   },
 
   // 購読停止関数
   unsubscribeFromRoom: () => {
-    const { subscription } = get();
-    if (subscription) {
-      subscription();
-      set({ subscription: null });
+    const { playersSubscription, gameStartSubscription, gamePlaySubscription } = get();
+    
+    if (playersSubscription) {
+      playersSubscription();
+      set({ playersSubscription: null });
+    }
+    if (gameStartSubscription) {
+      gameStartSubscription();
+      set({ gameStartSubscription: null });
+    }
+    if (gamePlaySubscription) {
+      gamePlaySubscription();
+      set({ gamePlaySubscription: null });
     }
   },
 
