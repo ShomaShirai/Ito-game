@@ -27,6 +27,7 @@ export default function ItoGame() {
     leaveRoom,
     startGame,
     sendMatchWord,
+    savePlayerOrder,
     unsubscribeFromRoom,
     isLoading,
     error,
@@ -173,6 +174,7 @@ export default function ItoGame() {
             currentTopic={currentTopic}
             onBackToTitle={backToTitle}
             onSendMatchWord={sendMatchWord}
+            onSavePlayerOrder={savePlayerOrder}
           />
         )}
 

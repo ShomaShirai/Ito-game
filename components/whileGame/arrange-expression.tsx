@@ -12,6 +12,7 @@ interface ArrangeExpressionProps {
   players: Player[]
   playerNumbers: PlayerNumber[]
   onBackToTitle: () => void
+  onSavePlayerOrder: (arrangedPlayerIds: string[]) => Promise<void>
 }
 
 interface PlayerExpression {
@@ -24,7 +25,8 @@ export default function ArrangeExpression({
   currentPlayer,
   players,
   playerNumbers,
-  onBackToTitle
+  onBackToTitle,
+  onSavePlayerOrder
 }: ArrangeExpressionProps) {
   const [sortedPlayers, setSortedPlayers] = useState<PlayerExpression[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -64,16 +66,19 @@ export default function ArrangeExpression({
 
     setIsSubmitting(true)
     try {
-      // TODO: 並び替え結果をデータベースに保存
-      console.log('並び替え結果:', sortedPlayers.map(sp => ({
+      // 並び替えた順番のプレイヤーIDを配列で取得
+      const arrangedPlayerIds = sortedPlayers.map(sp => sp.player.id);
+      
+      console.log('並び替え結果:', sortedPlayers.map((sp, index) => ({
+        position: index + 1,
         playerId: sp.player.id,
         name: sp.player.name,
         expression: sp.playerNumber.match_word,
         number: sp.playerNumber.number
-    })));
+      })));
 
-      // 次のフェーズ（reveal）に移行
-      // TODO: フェーズ更新機能を実装
+      // gameStoreの関数を呼び出してDBに保存
+      await onSavePlayerOrder(arrangedPlayerIds);
       
     } catch (error) {
       console.error('並び替え送信エラー:', error)

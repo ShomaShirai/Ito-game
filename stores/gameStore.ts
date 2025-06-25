@@ -16,6 +16,7 @@ interface GameActions {
   setLoading: (loading: boolean) => void;
   checkAllPlayersSubmitted: () => void;
   updateGamePhase: (phase: string) => Promise<void>;
+  savePlayerOrder: (arrangedPlayerIds: string[]) => Promise<void>;
 }
 
 interface GameState {
@@ -357,6 +358,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (allSubmitted) {
       console.log('全員が表現を送信完了 - arrangeフェーズに移行');
       await get().updateGamePhase('arrange');
+    }
+  },
+
+  // 並び替えた順番を保存して，revealフェーズに移行
+  savePlayerOrder: async (arrangedPlayerIds: string[]) => {
+    const { currentGame, currentPlayer } = get();
+    if (!currentGame || !currentPlayer?.is_host) return;
+
+    try {
+      // 各プレイヤーのpositionを更新（Promise.allで並行処理）
+      const updatePromises = arrangedPlayerIds.map((playerId, index) => 
+        supabase
+          .from('player_numbers')
+          .update({ position: index + 1 }) // 1から始まる順位
+          .eq('game_id', currentGame.id)
+          .eq('player_id', playerId)
+      );
+
+      await Promise.all(updatePromises);
+      console.log('プレイヤーの順番を保存しました:', arrangedPlayerIds);
+
+      // revealフェーズに移行
+      await get().updateGamePhase('reveal');
+      
+    } catch (error) {
+      console.error('順番保存エラー:', error);
+      set({ error: "順番の保存に失敗しました" });
+      throw error;
     }
   },
 
