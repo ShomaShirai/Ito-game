@@ -6,28 +6,47 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { useEffect, useState } from "react"
 import { Eye, Hash, Target } from "lucide-react"
-import { PlayerNumber, Topic, Player } from "@/lib/supabase"
+import { PlayerNumber, Topic, Player, supabase } from "@/lib/supabase"
 
 interface WatchOwnNumberProps {
   currentPlayer: Player | null
   playerNumbers: PlayerNumber[]
   currentTopic: Topic | null
   onBackToTitle: () => void
+  onSendMatchWord: (matchWord: string) => Promise<void>
 }
 
 export default function WatchOwnNumber({ 
   currentPlayer, 
   playerNumbers, 
   currentTopic,
-  onBackToTitle 
+  onBackToTitle,
+  onSendMatchWord
 }: WatchOwnNumberProps) {
-  const [matchWord, setMatchWord] = useState<string>("")
+  const [matchWord, setMatchWord] = useState<string>("") // プレイヤーが入力した数字に当てはまる表現
   const [showNumber, setShowNumber] = useState<boolean>(false)
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
   // 現在のプレイヤーの数字を取得
   const myNumber = currentPlayer 
     ? playerNumbers.find(pn => pn.player_id === currentPlayer.id)
     : null
+
+  // 表現送信処理
+  const handleSendMatchWord = async () => {
+    if (!matchWord.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSendMatchWord(matchWord);
+      // 送信成功後は入力フィールドをクリア
+      setMatchWord("");
+    } catch (error) {
+      console.error("表現送信エラー:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -118,23 +137,29 @@ export default function WatchOwnNumber({
               value={matchWord}
               onChange={(e) => setMatchWord(e.target.value)}
               className="text-center"
+              disabled={isSubmitting}
             />
             <p className="text-xs text-gray-500 text-center">
               ※ 具体的な数字は言わないでください
             </p>
+            {/* 既に送信済みの表現を表示 */}
+            {myNumber?.match_word && (
+              <div className="bg-green-50 p-2 rounded border border-green-200">
+                <p className="text-sm text-green-700">
+                  送信済み: {myNumber.match_word}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* アクションボタン */}
           <div className="flex gap-2">
             <Button
-              onClick={() => {
-                // TODO: 表現を送信する処理
-                console.log("表現を送信:", matchWord)
-              }}
-              disabled={!matchWord.trim()}
+              onClick={handleSendMatchWord}
+              disabled={!matchWord.trim() || isSubmitting}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white"
             >
-              表現を送信
+              {isSubmitting ? "送信中..." : "表現を送信"}
             </Button>
             <Button
               onClick={onBackToTitle}

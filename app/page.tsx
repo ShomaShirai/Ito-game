@@ -26,6 +26,7 @@ export default function ItoGame() {
     joinRoom,
     leaveRoom,
     startGame,
+    sendMatchWord,
     unsubscribeFromRoom,
     isLoading,
     error,
@@ -169,6 +170,7 @@ export default function ItoGame() {
             playerNumbers={playerNumbers}
             currentTopic={currentTopic}
             onBackToTitle={backToTitle}
+            onSendMatchWord={sendMatchWord}
           />
         )}
 

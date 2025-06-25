@@ -7,6 +7,7 @@ interface GameActions {
   joinRoom: (roomCode: string, playerName: string) => Promise<boolean>;
   leaveRoom: () => void;
   startGame: (selectedGenre: string) => Promise<void>;
+  sendMatchWord: (matchWord: string) => Promise<void>;
   subscribeToRoom: (roomId: string) => () => void;
   unsubscribeFromRoom: () => void;
   setError: (error: string | null) => void;
@@ -277,6 +278,41 @@ export const useGameStore = create<GameStore>((set, get) => ({
       console.error("ゲーム開始エラー:", error);
       set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false });
       throw error;
+    }
+  },
+
+  // プレイヤーが入力した数字に当てはまる数字を表現するための関数
+  sendMatchWord: async (matchWord: string) => {
+    const { currentPlayer, currentGame } = get();
+    if (!currentPlayer || !currentGame) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('player_numbers')
+        .update({ match_word: matchWord.trim() })
+        .eq('player_id', currentPlayer.id)
+        .eq('game_id', currentGame.id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("表現の送信に失敗：", error);
+        throw error;
+      }
+
+      // ローカル状態も更新
+      const { playerNumbers } = get();
+      const updatedPlayerNumbers = playerNumbers.map(pn => 
+        pn.player_id === currentPlayer.id 
+          ? { ...pn, match_word: matchWord.trim() }
+          : pn
+      );
+      set({ playerNumbers: updatedPlayerNumbers });
+
+      console.log("表現の送信に成功しました:", data);
+    } catch (error) {
+      console.error("表現の送信中にエラーが発生しました：", error);
+      set({ error: "表現の送信に失敗しました" });
     }
   },
 

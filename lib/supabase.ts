@@ -62,4 +62,5 @@ export interface PlayerNumber {
   player_id: string;
   number: number;
   position: number | null;
+  match_word: string | null;
 }

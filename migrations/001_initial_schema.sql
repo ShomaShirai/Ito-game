@@ -51,7 +51,8 @@ CREATE TABLE player_numbers (
   game_id UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   number INTEGER NOT NULL,
-  position INTEGER
+  position INTEGER,
+  match_word VARCHAR(100)
 );
 
 -- Add foreign key constraint for rooms.host_id
