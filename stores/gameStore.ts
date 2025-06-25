@@ -418,12 +418,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // 新しい人がチームに入ってきたタイミングでsubscribeする関数
   subscribeToPlayers: (roomId: string) => {
     const { playersChannel } = get();
-    
-    // 既存のチャンネルがあれば停止
-    if (playersChannel) {
-      console.log('既存のプレイヤーチャンネルを停止');
-      supabase.removeChannel(playersChannel);
-    }
 
     console.log('プレイヤー購読開始:', roomId);
     
@@ -474,12 +468,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // ゲームを開始した際にホスト以外の画面も遷移できるようにする関数
   subscribeToGameStart: (roomId: string) => {
     const { gameStartChannel } = get();
-    
-    // 既存のチャンネルがあれば停止
-    if (gameStartChannel) {
-      console.log('既存のゲーム開始チャンネルを停止');
-      supabase.removeChannel(gameStartChannel);
-    }
 
     console.log('ゲーム開始購読開始:', roomId);
     
@@ -569,12 +557,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!currentGame) {
       console.log('currentGameが存在しないため購読をスキップ');
       return () => {};
-    }
-
-    // 既存のチャンネルがあれば停止
-    if (gamePlayChannel) {
-      console.log('既存のゲーム中チャンネルを停止');
-      supabase.removeChannel(gamePlayChannel);
     }
 
     console.log('ゲーム中購読開始:', roomId);
