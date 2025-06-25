@@ -5,10 +5,12 @@
 import { useEffect, useState } from "react"
 import { Game, Player, PlayerNumber, Topic } from "@/lib/supabase"
 import WatchOwnNumber from "@/components/whileGame/watch-own-number"
+import ArrangeExpression from "@/components/whileGame/arrange-expression"
 
 interface WhileGameBaseProps {
   currentGame: Game | null
   currentPlayer: Player | null
+  players: Player[]
   playerNumbers: PlayerNumber[]
   currentTopic: Topic | null
   onBackToTitle: () => void
@@ -18,6 +20,7 @@ interface WhileGameBaseProps {
 export default function WhileGameBase({
   currentGame,
   currentPlayer,
+  players,
   playerNumbers,
   currentTopic,
   onBackToTitle,
@@ -48,11 +51,12 @@ export default function WhileGameBase({
       
       case 'arrange':
         return (
-          <div className="text-center text-white">
-            <div className="text-xl mb-2">並び替えフェーズ</div>
-            <div className="text-sm">プレイヤーの順番を決めてください</div>
-            {/* TODO: 並び替えコンポーネントを実装 */}
-          </div>
+          <ArrangeExpression
+            currentPlayer={currentPlayer}
+            players={players}
+            playerNumbers={playerNumbers}
+            onBackToTitle={onBackToTitle}
+          />
         )
       
       case 'reveal':
@@ -94,7 +98,6 @@ export default function WhileGameBase({
                    currentPhase === 'result' ? '結果' : '不明'}
         </div>
       </div>
-
       {/* フェーズに応じたコンポーネント */}
       {renderPhaseComponent()}
     </div>

@@ -168,6 +168,7 @@ export default function ItoGame() {
           <WhileGameBase
             currentGame={currentGame}
             currentPlayer={currentPlayer}
+            players={players}
             playerNumbers={playerNumbers}
             currentTopic={currentTopic}
             onBackToTitle={backToTitle}

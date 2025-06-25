@@ -14,6 +14,8 @@ interface GameActions {
   unsubscribeFromRoom: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
+  checkAllPlayersSubmitted: () => void;
+  updateGamePhase: (phase: string) => Promise<void>;
 }
 
 interface GameState {
@@ -32,10 +34,10 @@ interface GameState {
   isLoading: boolean;
   error: string | null;
 
-  // リアルタイム購読の参照を保持
-  playersSubscription: any;
-  gameStartSubscription: any;
-  gamePlaySubscription: any;
+  // リアルタイム購読の参照を保持（チャンネル自体を保存）
+  playersChannel: any;
+  gameStartChannel: any;
+  gamePlayChannel: any;
 }
 
 type GameStore = GameState & GameActions;
@@ -51,9 +53,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerOrder: [],
   isLoading: false,
   error: null,
-  playersSubscription: null,
-  gameStartSubscription: null,
-  gamePlaySubscription: null,
+  playersChannel: null,
+  gameStartChannel: null,
+  gamePlayChannel: null,
 
   // 部屋を作成する関数
   createRoom: async (playerName: string) => {
@@ -102,14 +104,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
 
       // プレイヤー参加の購読を開始
-      const playersUnsubscribe = get().subscribeToPlayers(updatedRoom.id);
+      get().subscribeToPlayers(updatedRoom.id);
       // ゲーム開始の購読を開始
-      const gameStartUnsubscribe = get().subscribeToGameStart(updatedRoom.id);
-      
-      set({ 
-        playersSubscription: playersUnsubscribe,
-        gameStartSubscription: gameStartUnsubscribe 
-      });
+      get().subscribeToGameStart(updatedRoom.id);
 
       return roomCode;
     } catch (error) {
@@ -170,14 +167,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
 
       // プレイヤー参加の購読を開始
-      const playersUnsubscribe = get().subscribeToPlayers(room.id);
+      get().subscribeToPlayers(room.id);
       // ゲーム開始の購読を開始
-      const gameStartUnsubscribe = get().subscribeToGameStart(room.id);
-      
-      set({ 
-        playersSubscription: playersUnsubscribe,
-        gameStartSubscription: gameStartUnsubscribe 
-      });
+      get().subscribeToGameStart(room.id);
 
       return true;
     } catch (error) {
@@ -189,18 +181,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // 部屋を退出する関数
   leaveRoom: async () => {
-    const { currentPlayer, playersSubscription, gameStartSubscription, gamePlaySubscription } = get();
+    const { currentPlayer, playersChannel, gameStartChannel, gamePlayChannel } = get();
     
     // 全ての購読を停止
-    if (playersSubscription) playersSubscription();
-    if (gameStartSubscription) gameStartSubscription();
-    if (gamePlaySubscription) gamePlaySubscription();
-    
-    set({ 
-      playersSubscription: null,
-      gameStartSubscription: null,
-      gamePlaySubscription: null 
-    });
+    if (playersChannel) {
+      supabase.removeChannel(playersChannel);
+      set({ playersChannel: null });
+    }
+    if (gameStartChannel) {
+      supabase.removeChannel(gameStartChannel);
+      set({ gameStartChannel: null });
+    }
+    if (gamePlayChannel) {
+      supabase.removeChannel(gamePlayChannel);
+      set({ gamePlayChannel: null });
+    }
     
     if (currentPlayer) {
       try {
@@ -298,8 +293,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
 
       // ゲーム中の購読を開始
-      const gamePlayUnsubscribe = get().subscribeToGamePlay(currentRoom.id);
-      set({ gamePlaySubscription: gamePlayUnsubscribe });
+      get().subscribeToGamePlay(currentRoom.id);
 
     } catch (error) {
       console.error("ゲーム開始エラー:", error);
@@ -337,18 +331,75 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ playerNumbers: updatedPlayerNumbers });
 
       console.log("表現の送信に成功しました:", data);
+
+      // 全員が表現を送信したかチェック
+      get().checkAllPlayersSubmitted();
+
     } catch (error) {
       console.error("表現の送信中にエラーが発生しました：", error);
       set({ error: "表現の送信に失敗しました" });
     }
   },
 
+  // 全員が表現を送信したかチェックする関数
+  checkAllPlayersSubmitted: async () => {
+    const { players, playerNumbers, currentGame, currentPlayer } = get();
+    if (!currentGame || !currentPlayer?.is_host) return;
+
+    // 全プレイヤーが表現を送信しているかチェック
+    const allSubmitted = players.every(player => {
+      const playerNumber = playerNumbers.find(pn => pn.player_id === player.id);
+      return playerNumber?.match_word && playerNumber.match_word.trim() !== '';
+    });
+
+    console.log('全員送信チェック:', allSubmitted, 'プレイヤー数:', players.length);
+
+    if (allSubmitted) {
+      console.log('全員が表現を送信完了 - arrangeフェーズに移行');
+      await get().updateGamePhase('arrange');
+    }
+  },
+
+  // ゲームフェーズを更新する関数
+  updateGamePhase: async (phase: string) => {
+    const { currentGame } = get();
+    if (!currentGame) return;
+
+    try {
+      const { data: updatedGame, error: gameError } = await supabase
+        .from('games')
+        .update({ phase: phase })
+        .eq('id', currentGame.id)
+        .select()
+        .single();
+
+      if (gameError) {
+        console.error("フェーズ更新に失敗しました", gameError);
+        throw gameError;
+      }
+
+      set({ currentGame: updatedGame });
+      console.log('フェーズを更新しました:', phase);
+    } catch (error) {
+      console.error("フェーズ更新エラー:", error);
+      set({ error: "フェーズの更新に失敗しました" });
+    }
+  },
+
   // 新しい人がチームに入ってきたタイミングでsubscribeする関数
   subscribeToPlayers: (roomId: string) => {
+    const { playersChannel } = get();
+    
+    // 既存のチャンネルがあれば停止
+    if (playersChannel) {
+      console.log('既存のプレイヤーチャンネルを停止');
+      supabase.removeChannel(playersChannel);
+    }
+
     console.log('プレイヤー購読開始:', roomId);
     
     const channel = supabase
-      .channel(`players-${roomId}`)
+      .channel(`players-${roomId}-${Date.now()}`) // タイムスタンプで一意性を保証
       .on(
         'postgres_changes',
         {
@@ -383,6 +434,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         console.log('プレイヤー購読状態:', status);
       });
 
+    set({ playersChannel: channel });
+
     return () => {
       console.log('プレイヤー購読停止');
       supabase.removeChannel(channel);
@@ -391,10 +444,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // ゲームを開始した際にホスト以外の画面も遷移できるようにする関数
   subscribeToGameStart: (roomId: string) => {
+    const { gameStartChannel } = get();
+    
+    // 既存のチャンネルがあれば停止
+    if (gameStartChannel) {
+      console.log('既存のゲーム開始チャンネルを停止');
+      supabase.removeChannel(gameStartChannel);
+    }
+
     console.log('ゲーム開始購読開始:', roomId);
     
     const channel = supabase
-      .channel(`game-start-${roomId}`)
+      .channel(`game-start-${roomId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -450,8 +511,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                     });
 
                     // ゲーム中の購読を開始
-                    const gamePlayUnsubscribe = get().subscribeToGamePlay(roomId);
-                    set({ gamePlaySubscription: gamePlayUnsubscribe });
+                    get().subscribeToGamePlay(roomId);
                   }
                 }
               }
@@ -465,6 +525,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         console.log('ゲーム開始購読状態:', status);
       });
 
+    set({ gameStartChannel: channel });
+
     return () => {
       console.log('ゲーム開始購読停止');
       supabase.removeChannel(channel);
@@ -473,16 +535,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // ゲーム中のリアルタイム購読を行う関数
   subscribeToGamePlay: (roomId: string) => {
-    console.log('ゲーム中購読開始:', roomId);
+    const { gamePlayChannel, currentGame } = get();
     
-    const { currentGame } = get();
     if (!currentGame) {
       console.log('currentGameが存在しないため購読をスキップ');
       return () => {};
     }
 
+    // 既存のチャンネルがあれば停止
+    if (gamePlayChannel) {
+      console.log('既存のゲーム中チャンネルを停止');
+      supabase.removeChannel(gamePlayChannel);
+    }
+
+    console.log('ゲーム中購読開始:', roomId);
+    
     const channel = supabase
-      .channel(`game-play-${roomId}`)
+      .channel(`game-play-${roomId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -498,7 +567,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
             const updatedGame = payload.new as Game;
             set({ currentGame: updatedGame });
             
-            // フェーズが変更された場合の追加処理
             if (updatedGame.phase) {
               console.log('フェーズ変更:', updatedGame.phase);
             }
@@ -525,6 +593,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
               pn.id === updatedPlayerNumber.id ? updatedPlayerNumber : pn
             );
             set({ playerNumbers: updatedPlayerNumbers });
+
+            // ホストの場合、全員が送信したかチェック
+            const { currentPlayer } = get();
+            if (currentPlayer?.is_host) {
+              setTimeout(() => {
+                get().checkAllPlayersSubmitted();
+              }, 1000); // 遅延を少し長くして確実に状態更新を待つ
+            }
           }
         }
       )
@@ -532,27 +608,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
         console.log('ゲーム中購読状態:', status);
       });
 
+    set({ gamePlayChannel: channel });
+
     return () => {
-      console.log('ゲーム中購読停止');
       supabase.removeChannel(channel);
     };
   },
 
   // 購読停止関数
   unsubscribeFromRoom: () => {
-    const { playersSubscription, gameStartSubscription, gamePlaySubscription } = get();
+    const { playersChannel, gameStartChannel, gamePlayChannel } = get();
     
-    if (playersSubscription) {
-      playersSubscription();
-      set({ playersSubscription: null });
+    if (playersChannel) {
+      supabase.removeChannel(playersChannel);
+      set({ playersChannel: null });
     }
-    if (gameStartSubscription) {
-      gameStartSubscription();
-      set({ gameStartSubscription: null });
+    if (gameStartChannel) {
+      supabase.removeChannel(gameStartChannel);
+      set({ gameStartChannel: null });
     }
-    if (gamePlaySubscription) {
-      gamePlaySubscription();
-      set({ gamePlaySubscription: null });
+    if (gamePlayChannel) {
+      supabase.removeChannel(gamePlayChannel);
+      set({ gamePlayChannel: null });
     }
   },
 

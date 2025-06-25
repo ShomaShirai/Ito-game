@@ -32,6 +32,8 @@ export default function WatchOwnNumber({
     ? playerNumbers.find(pn => pn.player_id === currentPlayer.id)
     : null
 
+
+  
   // 表現送信処理
   const handleSendMatchWord = async () => {
     if (!matchWord.trim() || isSubmitting) return;
@@ -39,7 +41,6 @@ export default function WatchOwnNumber({
     setIsSubmitting(true);
     try {
       await onSendMatchWord(matchWord);
-      // 送信成功後は入力フィールドをクリア
       setMatchWord("");
     } catch (error) {
       console.error("表現送信エラー:", error);
