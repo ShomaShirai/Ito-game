@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { Game, Player, PlayerNumber, Topic } from "@/lib/supabase"
 import WatchOwnNumber from "@/components/whileGame/watch-own-number"
 import ArrangeExpression from "@/components/whileGame/arrange-expression"
+import RevealRealOrder from "@/components/whileGame/reveal-real-order"
 
 interface WhileGameBaseProps {
   currentGame: Game | null
@@ -64,11 +65,12 @@ export default function WhileGameBase({
       
       case 'reveal':
         return (
-          <div className="text-center text-white">
-            <div className="text-xl mb-2">結果発表フェーズ</div>
-            <div className="text-sm">数字を公開します</div>
-            {/* TODO: 結果発表コンポーネントを実装 */}
-          </div>
+          <RevealRealOrder
+            currentPlayer={currentPlayer}
+            players={players}
+            playerNumbers={playerNumbers}
+            onBackToTitle={onBackToTitle}
+          />
         )
       
       case 'result':

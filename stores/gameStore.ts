@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { supabase, Room, Player, Game, PlayerNumber, Topic } from '@/lib/supabase';
-import { REALTIME_LISTEN_TYPES } from "@supabase/supabase-js";
 
 interface GameActions {
   createRoom: (playerName: string) => Promise<string>;
