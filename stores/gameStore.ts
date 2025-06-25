@@ -346,6 +346,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { players, playerNumbers, currentGame, currentPlayer } = get();
     if (!currentGame || !currentPlayer?.is_host) return;
 
+    // discussフェーズ以外では実行しない
+    if (currentGame.phase !== 'discuss') {
+      console.log('discussフェーズ以外のため全員送信チェックをスキップ:', currentGame.phase);
+      return;
+    }
+
     // 全プレイヤーが表現を送信しているかチェック
     const allSubmitted = players.every(player => {
       const playerNumber = playerNumbers.find(pn => pn.player_id === player.id);
@@ -557,8 +563,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       console.log('currentGameが存在しないため購読をスキップ');
       return () => {};
     }
-
-    console.log('ゲーム中購読開始:', roomId);
+    
+    console.log('ゲーム中購読開始:', roomId, 'フェーズ:', currentGame.phase);
     
     const channel = supabase
       .channel(`game-play-${roomId}-${Date.now()}`)
@@ -571,10 +577,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
-          console.log('ゲーム状態更新:', payload);
-          
           if (payload.eventType === 'UPDATE') {
             const updatedGame = payload.new as Game;
+            console.log('ゲーム状態更新:', {
+              oldPhase: get().currentGame?.phase,
+              newPhase: updatedGame.phase
+            });
+            
             set({ currentGame: updatedGame });
             
             if (updatedGame.phase) {
@@ -592,11 +601,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
           filter: `game_id=eq.${currentGame.id}`,
         },
         async (payload) => {
-          console.log('プレイヤー数字更新:', payload);
-          
           if (payload.eventType === 'UPDATE') {
             const updatedPlayerNumber = payload.new as PlayerNumber;
-            const { playerNumbers } = get();
+            const { playerNumbers, currentPlayer, currentGame } = get();
+            
+            console.log('プレイヤー数字更新:', {
+              playerId: updatedPlayerNumber.player_id,
+              matchWord: updatedPlayerNumber.match_word,
+              position: updatedPlayerNumber.position,
+              currentPhase: currentGame?.phase
+            });
             
             // ローカル状態を更新
             const updatedPlayerNumbers = playerNumbers.map(pn => 
@@ -604,12 +618,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
             );
             set({ playerNumbers: updatedPlayerNumbers });
 
-            // ホストの場合、全員が送信したかチェック
-            const { currentPlayer } = get();
-            if (currentPlayer?.is_host) {
+            // ホストかつdiscussフェーズの場合のみ全員送信チェック
+            if (currentPlayer?.is_host && currentGame?.phase === 'discuss') {
+              console.log('discussフェーズのため全員送信チェックを実行');
               setTimeout(() => {
                 get().checkAllPlayersSubmitted();
-              }, 1000); // 遅延を少し長くして確実に状態更新を待つ
+              }, 1000);
+            } else {
+              console.log('全員送信チェックをスキップ:', {
+                isHost: currentPlayer?.is_host,
+                phase: currentGame?.phase
+              });
             }
           }
         }
@@ -621,6 +640,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ gamePlayChannel: channel });
 
     return () => {
+      console.log('ゲーム中購読停止');
       supabase.removeChannel(channel);
     };
   },
