@@ -20,6 +20,7 @@ export default function ItoGame() {
     players,
     currentPlayer,
     currentTopic,
+    currentGame,
     playerNumbers,
     createRoom,
     joinRoom,
@@ -79,6 +80,20 @@ export default function ItoGame() {
     setPlayerName("")
     setJoinTeamId("")
   }
+
+  // ゲーム状態の自動切り替え
+  useEffect(() => {
+    if (currentRoom) {
+      // ホスト以外のプレイヤーの場合、ルーム状態に応じて画面を切り替え
+      if (!currentPlayer?.is_host) {
+        if (currentRoom.status === 'playing' && currentGame && currentTopic && playerNumbers.length > 0) {
+          setGameState("playing");
+        } else if (currentRoom.status === 'waiting') {
+          setGameState("waiting");
+        }
+      }
+    }
+  }, [currentRoom?.status, currentGame, currentTopic, playerNumbers, currentPlayer?.is_host]);
 
   // コンポーネントのアンマウント時にクリーンアップ
   useEffect(() => {
@@ -148,13 +163,21 @@ export default function ItoGame() {
           />
         )}
 
-        {gameState === "playing" && currentRoom && (
+        {gameState === "playing" && currentRoom && currentTopic && playerNumbers.length > 0 && (
           <WatchOwnNumber
             currentPlayer={currentPlayer}
             playerNumbers={playerNumbers}
             currentTopic={currentTopic}
             onBackToTitle={backToTitle}
           />
+        )}
+
+        {/* ゲームデータ読み込み中の表示 */}
+        {gameState === "playing" && currentRoom && (!currentTopic || playerNumbers.length === 0) && (
+          <div className="text-center text-white">
+            <div className="text-xl mb-2">ゲーム準備中...</div>
+            <div className="text-sm">しばらくお待ちください</div>
+          </div>
         )}
       </div>
     </div>

@@ -17,7 +17,13 @@ export default function WaitingScreen({ teamId, players, onBackToTitle }: Waitin
     <Card className="shadow-2xl">
       <CardHeader>
         <CardTitle className="text-2xl font-bold text-purple-600 text-center">待機中...</CardTitle>
-        <CardDescription className="text-center">ホストがゲームを開始するまでお待ちください</CardDescription>
+        <CardDescription className="text-center">
+          ホストがゲームを開始するまでお待ちください
+          <br />
+          <span className="text-sm text-gray-500 mt-1 block">
+            ゲームが開始されると自動的に画面が切り替わります
+          </span>
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="bg-gray-100 p-4 rounded-lg text-center">

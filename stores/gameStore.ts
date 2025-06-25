@@ -213,7 +213,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .from('rooms')
         .update({ status: 'playing', current_round: 1 })
         .eq('id', currentRoom.id);
-      console.log("ルームのステータスを更新しました:", currentRoom.id);
 
       // ジャンルに応じたトピック番号の範囲を決定
       let topicRange = { min: 1, max: 5 };
@@ -235,7 +234,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .eq('number', randomTopicNumber)
         .single();
       if (topicError) throw topicError;
-      console.log("選択されたトピック:", topic);
 
       // ゲームを作成
       const { data: game, error: gameError } = await supabase
@@ -252,7 +250,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .select()
         .single();
       if (gameError) throw gameError;
-      console.log("ゲームの作成が完了しました:", game);
 
       // 各プレイヤーに1-100の数字を割り当て
       const playerNumbersToInsert = players.map(player => ({
@@ -261,14 +258,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
         number: Math.floor(Math.random() * 100) + 1,
         position: null
       }));
-      console.log("プレイヤーの数字を生成:", playerNumbersToInsert);
 
       const { data: insertedPlayerNumbers, error: numbersError } = await supabase
         .from('player_numbers')
         .insert(playerNumbersToInsert)
         .select();
       if (numbersError) throw numbersError;
-      console.log("プレイヤーの数字が挿入されました:", insertedPlayerNumbers);
 
       // 状態を更新
       set({
@@ -294,7 +289,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     const channel = supabase
-      .channel(`room-${roomId}`)
+      .channel(`room-${roomId}`) // リアルタイム購読をしてルームに新たに入ってくる人を購読
       .on(
         'postgres_changes',
         {
@@ -308,7 +303,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           
           if (payload.eventType === 'INSERT') {
             const newPlayer = payload.new as Player;
-            // 重複チェック
             if (!players.some(p => p.id === newPlayer.id)) {
               set({ players: [...players, newPlayer] });
             }
@@ -322,7 +316,65 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
         }
       )
-      .subscribe();
+      .on( // リアルタイムで，ゲームが開始した際に画面が遷移するように変更する
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rooms',
+          filter: `id=eq.${roomId}`,
+        },
+        async (payload) => {
+          const updatedRoom = payload.new as Room;
+          
+          // ルーム状態を更新
+          set({ currentRoom: updatedRoom });
+          
+          // ゲームが開始された場合、ゲーム情報を取得
+          if (updatedRoom.status === 'playing') {
+            try {
+              // 最新のゲーム情報を取得
+              const { data: game, error: gameError } = await supabase
+                .from('games')
+                .select()
+                .eq('room_id', roomId)
+                .single();
+              
+              if (!gameError && game) {
+                // トピック情報を取得
+                const { data: topic, error: topicError } = await supabase
+                  .from('topics')
+                  .select()
+                  .eq('id', game.topic_id)
+                  .single();
+                console.log('トピック情報:', topic);
+                
+                if (!topicError && topic) {
+                  // プレイヤー数字情報を取得
+                  const { data: playerNumbers, error: numbersError } = await supabase
+                    .from('player_numbers')
+                    .select()
+                    .eq('game_id', game.id);
+                  console.log('プレイヤー数字情報:', playerNumbers);
+                  
+                  if (!numbersError && playerNumbers) {
+                    set({
+                      currentGame: game,
+                      currentTopic: topic,
+                      playerNumbers: playerNumbers,
+                    });
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('ゲーム情報取得エラー:', error);
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('購読状態:', status);
+      });
 
     // クリーンアップ関数を返す
     return () => {
