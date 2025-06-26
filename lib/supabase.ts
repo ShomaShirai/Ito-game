@@ -32,7 +32,7 @@ export interface Player {
   room_id: string;
   name: string;
   avatar_color: string;
-  total_score: number;
+  total_life: number;
   is_host: boolean;
   is_online: boolean;
   joined_at: string;
