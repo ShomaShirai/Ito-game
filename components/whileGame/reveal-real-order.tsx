@@ -57,7 +57,6 @@ export default function RevealRealOrder({
       if (prev.length === 0) {
         // 初回読み込み時はそのまま設定
         setScoreProcessed(false)
-        setAllAreRevealed(false)
         return sortedPlayerInfo
       }
       
@@ -182,6 +181,9 @@ export default function RevealRealOrder({
 
   const nextRevealIndex = orderedPlayers.findIndex(p => !p.revealed)
   const worstPlayers = allAreRevealed ? findWorstPlayers() : []
+  
+  // プレイヤーの中に誰かのライフが0以下の人がいるかチェック
+  const hasDeadPlayer = players.some(player => player.total_life <= 0)
 
   return (
     <div className="space-y-4">
@@ -289,6 +291,15 @@ export default function RevealRealOrder({
                     )}
                   </div>
                 )}
+                
+                {/* ライフが0になった場合の表示 */}
+                {hasDeadPlayer && (
+                  <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-lg">
+                    <p className="text-red-700 font-medium">
+                      ⚠️ ライフが0になったプレイヤーがいます。ゲームを終了します。
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -314,7 +325,8 @@ export default function RevealRealOrder({
               </Button>
             )}
 
-            {allAreRevealed && currentPlayer?.is_host && (
+            {/* ライフが0以下のプレイヤーがいない場合のみ「次のゲームに進む」ボタンを表示 */}
+            {allAreRevealed && currentPlayer?.is_host && !hasDeadPlayer && (
               <Button
                 onClick={goNextGame}
                 className="flex-1 bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center gap-2"
@@ -323,11 +335,16 @@ export default function RevealRealOrder({
               </Button>
             )}
 
+            {/* 「ゲームを終了する」ボタンは常に表示（ホストのみ） */}
             {allAreRevealed && currentPlayer?.is_host && (
               <Button
                 onClick={goFinalResult}
-                variant="outline"
-                className="flex-1 flex items-center justify-center gap-2"
+                variant={hasDeadPlayer ? "default" : "outline"}
+                className={`flex-1 flex items-center justify-center gap-2 ${
+                  hasDeadPlayer 
+                    ? "bg-red-600 hover:bg-red-700 text-white border-red-600" 
+                    : ""
+                }`}
               >
                 ゲームを終了する
               </Button>
@@ -335,7 +352,10 @@ export default function RevealRealOrder({
 
             {allAreRevealed && !currentPlayer?.is_host && (
               <div className="flex-1 bg-gray-100 p-3 rounded text-center text-gray-600">
-                お待ちください...
+                {hasDeadPlayer 
+                  ? "ゲームが終了します..."
+                  : "お待ちください..."
+                }
               </div>
             )}
           </div>
