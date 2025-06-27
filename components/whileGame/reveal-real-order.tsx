@@ -51,7 +51,24 @@ export default function RevealRealOrder({
       .filter(info => info.playerNumber?.position) // positionがあるもののみ
       .sort((a, b) => a.position - b.position)
 
-    setOrderedPlayers(sortedPlayerInfo)
+    // 既存の表示状態を保持しながら更新
+    setOrderedPlayers(prev => {
+      if (prev.length === 0) {
+        // 初回読み込み時はそのまま設定
+        setScoreProcessed(false)
+        setAllAreRevealed(false)
+        return sortedPlayerInfo
+      }
+      
+      // プレイヤー情報は更新するが、revealed状態は保持
+      return sortedPlayerInfo.map(newPlayerInfo => {
+        const existingPlayer = prev.find(p => p.player.id === newPlayerInfo.player.id)
+        return {
+          ...newPlayerInfo,
+          revealed: existingPlayer ? existingPlayer.revealed : false
+        }
+      })
+    })
     // setScoreProcessed(false) // 新しいデータが来たら点数処理をリセット
   }, [players, playerNumbers])
   
