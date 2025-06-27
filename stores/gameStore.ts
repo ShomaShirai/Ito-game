@@ -618,6 +618,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 .from('games')
                 .select()
                 .eq('room_id', roomId)
+                .order('round_number', { ascending: false }) // 最新のラウンドを取得
                 .single();
               
               if (!gameError && game) {
@@ -656,6 +657,52 @@ export const useGameStore = create<GameStore>((set, get) => ({
             } catch (error) {
               console.error('ゲーム情報取得エラー:', error);
             }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games',
+          filter: `room_id=eq.${roomId}`,
+        },
+        async (payload) => {
+          console.log('新しいゲーム検出:', payload);
+          const newGame = payload.new as Game;
+          
+          try {
+            // トピック情報を取得
+            const { data: topic, error: topicError } = await supabase
+              .from('topics')
+              .select()
+              .eq('id', newGame.topic_id)
+              .single();
+            
+            if (!topicError && topic) {
+              console.log('新ゲームトピック情報取得成功:', topic);
+              
+              // プレイヤー数字情報を取得
+              const { data: playerNumbers, error: numbersError } = await supabase
+                .from('player_numbers')
+                .select()
+                .eq('game_id', newGame.id);
+              
+              if (!numbersError && playerNumbers) {
+                console.log('新ゲームプレイヤー数字情報取得成功:', playerNumbers);
+                
+                set({
+                  currentGame: newGame,
+                  currentTopic: topic,
+                  playerNumbers: playerNumbers,
+                });
+
+                console.log('次のゲームに画面更新完了');
+              }
+            }
+          } catch (error) {
+            console.error('新ゲーム情報取得エラー:', error);
           }
         }
       )

@@ -33,6 +33,7 @@ export default function RevealRealOrder({
 }: RevealRealOrderProps) {
   const [orderedPlayers, setOrderedPlayers] = useState<PlayerOrderInfo[]>([])
   const [scoreProcessed, setScoreProcessed] = useState(false)
+  const [allAreRevealed, setAllAreRevealed] = useState(false)
 
   // プレイヤーを並び替えた順番でソート
   useEffect(() => {
@@ -52,9 +53,6 @@ export default function RevealRealOrder({
     setOrderedPlayers(sortedPlayerInfo)
     setScoreProcessed(false) // 新しいデータが来たら点数処理をリセット
   }, [players, playerNumbers])
-
-  // 全て表示された時の処理
-  const allAreRevealed = orderedPlayers.length > 0 && orderedPlayers.every(p => p.revealed)
   
   useEffect(() => {
     if (allAreRevealed && !scoreProcessed && orderedPlayers.length > 0) {
@@ -71,16 +69,19 @@ export default function RevealRealOrder({
 
       const updated = [...prev]
       updated[nextIndex] = { ...updated[nextIndex], revealed: true }
+
+      // 次の数字が全て表示されたかチェック
+      const allRevealed = updated.every(p => p.revealed)
+      if (allRevealed) setAllAreRevealed(true)
+      
       return updated
     })
-
-    console.log(allAreRevealed)
   }
 
   // 一気に全て表示
   const revealAll = () => {
     setOrderedPlayers(prev => prev.map(p => ({ ...p, revealed: true })))
-    console.log(allAreRevealed)
+    setAllAreRevealed(true)
   }
 
   // 隠す
