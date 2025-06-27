@@ -7,6 +7,7 @@ import { Game, Player, PlayerNumber, Topic } from "@/lib/supabase"
 import WatchOwnNumber from "@/components/whileGame/watch-own-number"
 import ArrangeExpression from "@/components/whileGame/arrange-expression"
 import RevealRealOrder from "@/components/whileGame/reveal-real-order"
+import ShowResult from "@/components/whileGame/show-result"
 
 interface WhileGameBaseProps {
   currentGame: Game | null
@@ -19,6 +20,7 @@ interface WhileGameBaseProps {
   onSavePlayerOrder: (arrangedPlayerIds: string[]) => Promise<void>
   onUpdatePlayerLife?: (playerId: string, lifeChange: number) => Promise<void>
   onStartNextGame?: () => Promise<void>
+  onEndGame?: () => Promise<void>
 }
 
 export default function WhileGameBase({
@@ -31,7 +33,8 @@ export default function WhileGameBase({
   onSendMatchWord,
   onSavePlayerOrder,
   onUpdatePlayerLife,
-  onStartNextGame
+  onStartNextGame,
+  onEndGame
 }: WhileGameBaseProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('discuss')
 
@@ -76,16 +79,17 @@ export default function WhileGameBase({
             onBackToTitle={onBackToTitle}
             onUpdatePlayerLife={onUpdatePlayerLife}
             onStartNextGame={onStartNextGame}
+            onEndGame={onEndGame}
           />
         )
       
       case 'result':
         return (
-          <div className="text-center text-white">
-            <div className="text-xl mb-2">結果フェーズ</div>
-            <div className="text-sm">ゲーム結果を表示します</div>
-            {/* TODO: 結果表示コンポーネントを実装 */}
-          </div>
+          <ShowResult
+            currentPlayer={currentPlayer}
+            players={players}
+            onBackToTitle={onBackToTitle}
+          />
         )
       
       default:

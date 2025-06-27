@@ -34,6 +34,7 @@ export default function ItoGame() {
     isLoading,
     error,
     startNextGame,
+    endGame,
   } = useGameStore()
 
   // チームを作成
@@ -180,6 +181,7 @@ export default function ItoGame() {
             onSavePlayerOrder={savePlayerOrder}
             onUpdatePlayerLife={updatePlayerLife}
             onStartNextGame={startNextGame}
+            onEndGame={endGame}
           />
         )}
 

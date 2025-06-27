@@ -19,6 +19,7 @@ interface GameActions {
   updatePlayerLife: (playerId: string, lifeChange: number) => Promise<void>;
   startNextGame: () => Promise<void>;
   generateUniqueNumbers: (count: number, min?: number, max?: number) => number[];
+  endGame: () => Promise<void>;
 }
 
 interface GameState {
@@ -863,5 +864,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setLoading: (loading: boolean) => {
     set({ isLoading: loading });
+  },
+
+  // ゲームを終了してresultフェーズに移行する関数
+  endGame: async () => {
+    const { currentGame, currentPlayer } = get();
+    if (!currentGame || !currentPlayer?.is_host) return;
+
+    try {
+      console.log('ゲームを終了してresultフェーズに移行');
+      await get().updateGamePhase('result');
+    } catch (error) {
+      console.error('ゲーム終了エラー:', error);
+      set({ error: "ゲームの終了に失敗しました" });
+      throw error;
+    }
   },
 }));

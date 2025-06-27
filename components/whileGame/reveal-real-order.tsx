@@ -14,6 +14,7 @@ interface RevealRealOrderProps {
   onBackToTitle: () => void
   onUpdatePlayerLife?: (playerId: string, lifeChange: number) => Promise<void>
   onStartNextGame?: () => Promise<void>
+  onEndGame?: () => Promise<void>
 }
 
 interface PlayerOrderInfo {
@@ -29,7 +30,8 @@ export default function RevealRealOrder({
   playerNumbers,
   onBackToTitle,
   onUpdatePlayerLife,
-  onStartNextGame
+  onStartNextGame,
+  onEndGame
 }: RevealRealOrderProps) {
   const [orderedPlayers, setOrderedPlayers] = useState<PlayerOrderInfo[]>([])
   const [scoreProcessed, setScoreProcessed] = useState(false)
@@ -164,9 +166,18 @@ export default function RevealRealOrder({
     }
   }
 
-  const goFinalResult = () => {
-    // 最終結果画面に進む処理を実装
-    console.log("最終結果画面に進みます")
+  const goFinalResult = async () => {
+    if (!onEndGame) {
+      console.error('onEndGame関数が提供されていません');
+      return;
+    }
+
+    try {
+      console.log("ゲームを終了します");
+      await onEndGame();
+    } catch (error) {
+      console.error('ゲーム終了エラー:', error);
+    }
   }
 
   const nextRevealIndex = orderedPlayers.findIndex(p => !p.revealed)
