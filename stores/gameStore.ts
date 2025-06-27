@@ -550,9 +550,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isLoading: false,
       });
 
-      // 新しいゲームの購読を開始
-      get().subscribeToGamePlay(currentRoom.id);
-
       console.log('次のゲームを開始しました:', newGame);
       
     } catch (error) {
