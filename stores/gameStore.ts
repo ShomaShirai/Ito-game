@@ -247,13 +247,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .eq('id', currentRoom.id);
 
       // ジャンルに応じたトピック番号の範囲を決定
-      let topicRange = { min: 1, max: 5 };
+      let topicRange = { min: 1, max: 20 };
       if (selectedGenre === '恋愛') {
-        topicRange = { min: 1, max: 5 };
+        topicRange = { min: 1, max: 20 };
       } else if (selectedGenre === '盛り上がる') {
-        topicRange = { min: 21, max: 25 };
+        topicRange = { min: 21, max: 40 };
       } else if (selectedGenre === 'エッチ') {
-        topicRange = { min: 41, max: 45 };
+        topicRange = { min: 41, max: 60 };
       }
 
       // ランダムなトピックを選択
