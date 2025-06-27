@@ -84,12 +84,6 @@ export default function RevealRealOrder({
     setAllAreRevealed(true)
   }
 
-  // 隠す
-  const hideAll = () => {
-    setOrderedPlayers(prev => prev.map(p => ({ ...p, revealed: false })))
-    setScoreProcessed(false)
-  }
-
   // 点数減算処理
   const processScoreReduction = async () => {
     if (!orderedPlayers.length || !onUpdatePlayerLife) return
