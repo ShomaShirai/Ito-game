@@ -32,7 +32,6 @@ export default function RevealRealOrder({
   onStartNextGame
 }: RevealRealOrderProps) {
   const [orderedPlayers, setOrderedPlayers] = useState<PlayerOrderInfo[]>([])
-  const [allRevealed, setAllRevealed] = useState(false)
   const [scoreProcessed, setScoreProcessed] = useState(false)
 
   // プレイヤーを並び替えた順番でソート
@@ -51,15 +50,18 @@ export default function RevealRealOrder({
       .sort((a, b) => a.position - b.position)
 
     setOrderedPlayers(sortedPlayerInfo)
+    setScoreProcessed(false) // 新しいデータが来たら点数処理をリセット
   }, [players, playerNumbers])
 
   // 全て表示された時の処理
+  const allAreRevealed = orderedPlayers.length > 0 && orderedPlayers.every(p => p.revealed)
+  
   useEffect(() => {
-    if (allRevealed && !scoreProcessed && orderedPlayers.length > 0) {
+    if (allAreRevealed && !scoreProcessed && orderedPlayers.length > 0) {
       processScoreReduction()
       setScoreProcessed(true)
     }
-  }, [allRevealed, scoreProcessed, orderedPlayers])
+  }, [allAreRevealed, scoreProcessed, orderedPlayers])
 
   // 1つずつ数字を表示
   const revealNext = () => {
@@ -69,23 +71,21 @@ export default function RevealRealOrder({
 
       const updated = [...prev]
       updated[nextIndex] = { ...updated[nextIndex], revealed: true }
-      if (nextIndex === prev.length - 1) {
-        setAllRevealed(true)
-      }
       return updated
     })
+
+    console.log(allAreRevealed)
   }
 
   // 一気に全て表示
   const revealAll = () => {
     setOrderedPlayers(prev => prev.map(p => ({ ...p, revealed: true })))
-    setAllRevealed(true)
+    console.log(allAreRevealed)
   }
 
   // 隠す
   const hideAll = () => {
     setOrderedPlayers(prev => prev.map(p => ({ ...p, revealed: false })))
-    setAllRevealed(false)
     setScoreProcessed(false)
   }
 
@@ -147,7 +147,6 @@ export default function RevealRealOrder({
   }
 
   const nextRevealIndex = orderedPlayers.findIndex(p => !p.revealed)
-  const allAreRevealed = orderedPlayers.length > 0 && orderedPlayers.every(p => p.revealed)
   const worstPlayer = allAreRevealed ? findWorstPlayer() : null
 
   return (
@@ -267,7 +266,7 @@ export default function RevealRealOrder({
               </Button>
             )}
             
-            {!allRevealed && (
+            {!allAreRevealed && (
               <Button
                 onClick={revealAll}
                 className="flex-1 bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center gap-2"
@@ -286,7 +285,7 @@ export default function RevealRealOrder({
               </Button>
             )}
 
-            {allAreRevealed && (
+            {allAreRevealed && currentPlayer?.is_host && (
               <Button
                 onClick={goFinalResult}
                 variant="outline"
@@ -294,6 +293,12 @@ export default function RevealRealOrder({
               >
                 ゲームを終了する
               </Button>
+            )}
+
+            {allAreRevealed && !currentPlayer?.is_host && (
+              <div className="flex-1 bg-gray-100 p-3 rounded text-center text-gray-600">
+                お待ちください...
+              </div>
             )}
           </div>
         </CardContent>
