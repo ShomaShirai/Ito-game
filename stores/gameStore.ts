@@ -16,6 +16,7 @@ interface GameActions {
   checkAllPlayersSubmitted: () => void;
   updateGamePhase: (phase: string) => Promise<void>;
   savePlayerOrder: (arrangedPlayerIds: string[]) => Promise<void>;
+  updatePlayerLife: (playerId: string, lifeChange: number) => Promise<void>;
 }
 
 interface GameState {
@@ -642,6 +643,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
       console.log('ゲーム中購読停止');
       supabase.removeChannel(channel);
     };
+  },
+
+  // プレイヤーの点数を更新する関数
+  updatePlayerLife: async (playerId: string, lifeChange: number) => {
+    const { players } = get();
+    
+    try {
+      // Optimistic Update（即座にフロントエンドを更新）
+      const optimisticPlayers = players.map(p => 
+        p.id === playerId 
+          ? { ...p, total_life: p.total_life + lifeChange }
+          : p
+      );
+      set({ players: optimisticPlayers });
+
+      // データベースを更新
+      const player = players.find(p => p.id === playerId);
+      const newTotalLife = player ? player.total_life + lifeChange : lifeChange;
+      const { data, error } = await supabase
+        .from('players')
+        .update({ total_life: newTotalLife })
+        .eq('id', playerId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('点数更新エラー:', error);
+        // エラー時は元に戻す
+        set({ players });
+        throw error;
+      }
+
+      console.log('点数更新成功:', data);
+    } catch (error) {
+      console.error('点数更新に失敗しました:', error);
+      throw error;
+    }
   },
 
   // 購読停止関数

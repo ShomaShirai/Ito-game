@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Player, PlayerNumber } from "@/lib/supabase"
-import { Eye, EyeOff, Crown, Zap } from "lucide-react"
+import { Eye, EyeOff, Crown, Zap, Heart } from "lucide-react"
 
 interface RevealRealOrderProps {
   currentPlayer: Player | null
   players: Player[]
   playerNumbers: PlayerNumber[]
   onBackToTitle: () => void
+  onUpdatePlayerLife?: (playerId: string, lifeChange: number) => Promise<void>
 }
 
 interface PlayerOrderInfo {
@@ -25,10 +26,12 @@ export default function RevealRealOrder({
   currentPlayer,
   players,
   playerNumbers,
-  onBackToTitle
+  onBackToTitle,
+  onUpdatePlayerLife
 }: RevealRealOrderProps) {
   const [orderedPlayers, setOrderedPlayers] = useState<PlayerOrderInfo[]>([])
   const [allRevealed, setAllRevealed] = useState(false)
+  const [scoreProcessed, setScoreProcessed] = useState(false)
 
   // プレイヤーを並び替えた順番でソート
   useEffect(() => {
@@ -48,6 +51,14 @@ export default function RevealRealOrder({
     setOrderedPlayers(sortedPlayerInfo)
   }, [players, playerNumbers])
 
+  // 全て表示された時の処理
+  useEffect(() => {
+    if (allRevealed && !scoreProcessed && orderedPlayers.length > 0) {
+      processScoreReduction()
+      setScoreProcessed(true)
+    }
+  }, [allRevealed, scoreProcessed, orderedPlayers])
+
   // 1つずつ数字を表示
   const revealNext = () => {
     setOrderedPlayers(prev => {
@@ -56,6 +67,9 @@ export default function RevealRealOrder({
 
       const updated = [...prev]
       updated[nextIndex] = { ...updated[nextIndex], revealed: true }
+      if (nextIndex === prev.length - 1) {
+        setAllRevealed(true)
+      }
       return updated
     })
   }
@@ -70,10 +84,60 @@ export default function RevealRealOrder({
   const hideAll = () => {
     setOrderedPlayers(prev => prev.map(p => ({ ...p, revealed: false })))
     setAllRevealed(false)
+    setScoreProcessed(false)
+  }
+
+  // 点数減算処理
+  const processScoreReduction = async () => {
+    if (!orderedPlayers.length || !onUpdatePlayerLife) return
+
+    const worstPlayer = findWorstPlayer()
+    if (worstPlayer) {
+      try {
+        await onUpdatePlayerLife(worstPlayer.player.id, -1)
+        console.log(`${worstPlayer.player.name}の点数を-1しました`)
+      } catch (error) {
+        console.error('点数更新エラー:', error)
+      }
+    }
+  }
+
+  // 最も順番が離れているプレイヤーを見つける
+  const findWorstPlayer = (): PlayerOrderInfo | null => {
+    if (orderedPlayers.length === 0) return null
+
+    // 正しい順番（数字の昇順）
+    const correctOrder = [...orderedPlayers].sort((a, b) => a.playerNumber.number - b.playerNumber.number)
+    
+    let maxDistance = 0
+    let worstPlayer: PlayerOrderInfo | null = null
+
+    orderedPlayers.forEach((playerInfo, arrangedIndex) => {
+      const correctIndex = correctOrder.findIndex(p => p.player.id === playerInfo.player.id)
+      const distance = Math.abs(arrangedIndex - correctIndex)
+      
+      if (distance > maxDistance) {
+        maxDistance = distance
+        worstPlayer = playerInfo
+      }
+    })
+
+    return worstPlayer
+  }
+
+  const goNextGame = () => {
+    // 次のゲームに進む処理を実装
+    console.log("次のゲームに進みます")
+  }
+
+  const goFinalResult = () => {
+    // 最終結果画面に進む処理を実装
+    console.log("最終結果画面に進みます")
   }
 
   const nextRevealIndex = orderedPlayers.findIndex(p => !p.revealed)
   const allAreRevealed = orderedPlayers.length > 0 && orderedPlayers.every(p => p.revealed)
+  const worstPlayer = allAreRevealed ? findWorstPlayer() : null
 
   return (
     <div className="space-y-4">
@@ -85,7 +149,7 @@ export default function RevealRealOrder({
             数字の発表
           </CardTitle>
           <CardDescription className="text-center">
-            並び替えた順番で実際の数字を確認しましょう
+            昇順に並び替えた番号で，実際の数字を確認しましょう
           </CardDescription>
         </CardHeader>
       </Card>
@@ -103,14 +167,15 @@ export default function RevealRealOrder({
                     : nextRevealIndex === index 
                       ? 'bg-yellow-50 border-yellow-200 ring-2 ring-yellow-300' 
                       : 'bg-white border-gray-200'
+                } ${
+                  allAreRevealed && worstPlayer?.player.id === playerInfo.player.id
+                    ? 'ring-2 ring-red-300 bg-red-50'
+                    : ''
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-center">
                     <span className="text-sm text-gray-500">#{index + 1}</span>
-                    <Badge variant="outline" className="text-xs">
-                      順位: {playerInfo.position}
-                    </Badge>
                   </div>
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2">
@@ -120,10 +185,23 @@ export default function RevealRealOrder({
                           <Crown className="h-3 w-3" />
                         </Badge>
                       )}
+                      {/* 点数表示 */}
+                      <div className="flex items-center gap-1">
+                        <Heart className="h-4 w-4 text-red-500" />
+                        <span className="text-sm font-medium text-red-600">
+                          {playerInfo.player.total_life}
+                        </span>
+                      </div>
                     </div>
                     <span className="text-sm text-gray-600">
                       "{playerInfo.playerNumber.match_word}"
                     </span>
+                    {/* 最も外れていた場合の表示 */}
+                    {allAreRevealed && worstPlayer?.player.id === playerInfo.player.id && (
+                      <span className="text-xs text-red-600 font-medium">
+                        最も順番が離れていました (-1点)
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -155,7 +233,12 @@ export default function RevealRealOrder({
                 ) : (
                   <div className="text-red-600">
                     <div className="text-2xl font-bold mb-2">❌ 失敗</div>
-                    <p>順番が違っていました。次回頑張りましょう！</p>
+                    <p>順番が違っていました！</p>
+                    {worstPlayer && (
+                      <p className="text-sm mt-2">
+                        {worstPlayer.player.name}さんが最も順番から離れていたため、1点減少します。
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -185,22 +268,24 @@ export default function RevealRealOrder({
 
             {allAreRevealed && (
               <Button
-                onClick={hideAll}
+                onClick={goNextGame}
                 variant="outline"
                 className="flex-1 flex items-center justify-center gap-2"
               >
                 <EyeOff className="h-4 w-4" />
-                隠す
+                次のゲームに進む
               </Button>
             )}
-
-            <Button
-              onClick={onBackToTitle}
-              variant="outline"
-              className="border-gray-300 text-gray-600 hover:bg-gray-50"
-            >
-              退出
-            </Button>
+            {allAreRevealed && (
+              <Button
+                onClick={goFinalResult}
+                variant="outline"
+                className="flex-1 flex items-center justify-center gap-2"
+              >
+                <EyeOff className="h-4 w-4" />
+                ゲームを終了する
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

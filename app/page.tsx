@@ -28,6 +28,8 @@ export default function ItoGame() {
     startGame,
     sendMatchWord,
     savePlayerOrder,
+    updatePlayerLife,
+    updateGamePhase,
     unsubscribeFromRoom,
     isLoading,
     error,
@@ -175,6 +177,7 @@ export default function ItoGame() {
             onBackToTitle={backToTitle}
             onSendMatchWord={sendMatchWord}
             onSavePlayerOrder={savePlayerOrder}
+            onUpdatePlayerLife={updatePlayerLife}
           />
         )}
 
