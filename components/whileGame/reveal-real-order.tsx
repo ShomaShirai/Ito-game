@@ -34,6 +34,7 @@ export default function RevealRealOrder({
   const [orderedPlayers, setOrderedPlayers] = useState<PlayerOrderInfo[]>([])
   const [scoreProcessed, setScoreProcessed] = useState(false)
   const [allAreRevealed, setAllAreRevealed] = useState(false)
+  // const [isChangeLife, setIsChangeLife] = useState(false)
 
   // プレイヤーを並び替えた順番でソート
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function RevealRealOrder({
       .sort((a, b) => a.position - b.position)
 
     setOrderedPlayers(sortedPlayerInfo)
-    setScoreProcessed(false) // 新しいデータが来たら点数処理をリセット
+    // setScoreProcessed(false) // 新しいデータが来たら点数処理をリセット
   }, [players, playerNumbers])
   
   useEffect(() => {
@@ -88,38 +89,48 @@ export default function RevealRealOrder({
   const processScoreReduction = async () => {
     if (!orderedPlayers.length || !onUpdatePlayerLife) return
 
-    const worstPlayer = findWorstPlayer()
-    if (worstPlayer) {
+    const worstPlayers = findWorstPlayers()
+    if (worstPlayers.length > 0) {
       try {
-        await onUpdatePlayerLife(worstPlayer.player.id, -1)
-        console.log(`${worstPlayer.player.name}の点数を-1しました`)
+        // 複数のプレイヤーの点数を同時に減算
+        await Promise.all(
+          worstPlayers.map(player => 
+            onUpdatePlayerLife(player.player.id, -1)
+          )
+        )
+        console.log(`${worstPlayers.map(p => p.player.name).join(', ')}の点数を-1しました`)
       } catch (error) {
         console.error('点数更新エラー:', error)
       }
     }
   }
 
-  // 最も順番が離れているプレイヤーを見つける
-  const findWorstPlayer = (): PlayerOrderInfo | null => {
-    if (orderedPlayers.length === 0) return null
+  // 最も順番が離れているプレイヤーたちを見つける（複数対応）
+  const findWorstPlayers = (): PlayerOrderInfo[] => {
+    if (orderedPlayers.length === 0) return []
 
     // 正しい順番（数字の昇順）
     const correctOrder = [...orderedPlayers].sort((a, b) => a.playerNumber.number - b.playerNumber.number)
     
     let maxDistance = 0
-    let worstPlayer: PlayerOrderInfo | null = null
+    const playerDistances: { player: PlayerOrderInfo; distance: number }[] = []
 
+    // 各プレイヤーの距離を計算
     orderedPlayers.forEach((playerInfo, arrangedIndex) => {
       const correctIndex = correctOrder.findIndex(p => p.player.id === playerInfo.player.id)
       const distance = Math.abs(arrangedIndex - correctIndex)
       
+      playerDistances.push({ player: playerInfo, distance })
+      
       if (distance > maxDistance) {
         maxDistance = distance
-        worstPlayer = playerInfo
       }
     })
 
-    return worstPlayer
+    // 最大距離のプレイヤーたちを返す
+    return playerDistances
+      .filter(item => item.distance === maxDistance)
+      .map(item => item.player)
   }
 
   const goNextGame = async () => {
@@ -142,7 +153,7 @@ export default function RevealRealOrder({
   }
 
   const nextRevealIndex = orderedPlayers.findIndex(p => !p.revealed)
-  const worstPlayer = allAreRevealed ? findWorstPlayer() : null
+  const worstPlayers = allAreRevealed ? findWorstPlayers() : []
 
   return (
     <div className="space-y-4">
@@ -173,7 +184,7 @@ export default function RevealRealOrder({
                       ? 'bg-yellow-50 border-yellow-200 ring-2 ring-yellow-300' 
                       : 'bg-white border-gray-200'
                 } ${
-                  allAreRevealed && worstPlayer?.player.id === playerInfo.player.id
+                  allAreRevealed && worstPlayers.some(wp => wp.player.id === playerInfo.player.id)
                     ? 'ring-2 ring-red-300 bg-red-50'
                     : ''
                 }`}
@@ -202,7 +213,7 @@ export default function RevealRealOrder({
                       "{playerInfo.playerNumber.match_word}"
                     </span>
                     {/* 最も外れていた場合の表示 */}
-                    {allAreRevealed && worstPlayer?.player.id === playerInfo.player.id && (
+                    {allAreRevealed && worstPlayers.some(wp => wp.player.id === playerInfo.player.id) && (
                       <span className="text-xs text-red-600 font-medium">
                         最も順番が離れていました (-1点)
                       </span>
@@ -239,9 +250,13 @@ export default function RevealRealOrder({
                   <div className="text-red-600">
                     <div className="text-2xl font-bold mb-2">❌ 失敗</div>
                     <p>順番が違っていました！</p>
-                    {worstPlayer && (
+                    {worstPlayers.length > 0 && (
                       <p className="text-sm mt-2">
-                        {worstPlayer.player.name}さんが最も順番から離れていたため、1点減少します。
+                        {worstPlayers.length === 1 ? (
+                          `${worstPlayers[0].player.name}さんが最も順番から離れていたため、1点減少します。`
+                        ) : (
+                          `${worstPlayers.map(wp => wp.player.name).join('、')}さんが最も順番から離れていたため、それぞれ1点減少します。`
+                        )}
                       </p>
                     )}
                   </div>
