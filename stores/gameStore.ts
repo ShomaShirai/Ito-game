@@ -18,6 +18,7 @@ interface GameActions {
   savePlayerOrder: (arrangedPlayerIds: string[]) => Promise<void>;
   updatePlayerLife: (playerId: string, lifeChange: number) => Promise<void>;
   startNextGame: () => Promise<void>;
+  generateUniqueNumbers: (count: number, min?: number, max?: number) => number[];
 }
 
 interface GameState {
@@ -210,6 +211,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  // 重複しない数字を生成するヘルパー関数
+  generateUniqueNumbers: (count: number, min: number = 1, max: number = 100): number[] => {
+    if (count > (max - min + 1)) {
+      throw new Error(`Cannot generate ${count} unique numbers between ${min} and ${max}`);
+    }
+    
+    const numbers: number[] = [];
+    const usedNumbers = new Set<number>();
+    
+    while (numbers.length < count) {
+      const randomNumber = Math.floor(Math.random() * (max - min + 1)) + min;
+      if (!usedNumbers.has(randomNumber)) {
+        usedNumbers.add(randomNumber);
+        numbers.push(randomNumber);
+      }
+    }
+    
+    return numbers;
+  },
+
   // ゲームを開始する際の関数
   startGame: async (selectedGenre: string) => {
     const { currentRoom, currentPlayer, players } = get();
@@ -260,11 +281,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .single();
       if (gameError) throw gameError;
 
-      // 各プレイヤーに1-100の数字を割り当て
-      const playerNumbersToInsert = players.map(player => ({
+      // 各プレイヤーに重複しない1-100の数字を割り当て
+      const uniqueNumbers = get().generateUniqueNumbers(players.length);
+      const playerNumbersToInsert = players.map((player, index) => ({
         game_id: game.id,
         player_id: player.id,
-        number: Math.floor(Math.random() * 100) + 1,
+        number: uniqueNumbers[index],
         position: null
       }));
 
@@ -504,11 +526,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .single();
       if (gameError) throw gameError;
 
-      // 各プレイヤーに新しい数字を割り当て
-      const playerNumbersToInsert = players.map(player => ({
+      // 各プレイヤーに重複しない新しい数字を割り当て
+      const uniqueNumbers = get().generateUniqueNumbers(players.length);
+      const playerNumbersToInsert = players.map((player, index) => ({
         game_id: newGame.id,
         player_id: player.id,
-        number: Math.floor(Math.random() * 100) + 1,
+        number: uniqueNumbers[index],
         position: null,
         match_word: null
       }));
