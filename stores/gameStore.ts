@@ -263,8 +263,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           topic_id: topic.id,
           topic_number: topic.number,
           phase: 'discuss',
-          player_order: players.map(p => p.id),
-          correct_order: []
+          player_order: players.map(p => p.id)
         })
         .select()
         .single();

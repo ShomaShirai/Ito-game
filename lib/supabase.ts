@@ -54,7 +54,6 @@ export interface Game {
   topic_number: number | null;
   phase: 'discuss' | 'arrange' | 'reveal' | 'result';
   player_order: string[];
-  correct_order: string[];
   started_at: string;
   ended_at: string | null;
 }

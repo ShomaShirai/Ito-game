@@ -40,7 +40,6 @@ CREATE TABLE games (
   topic_number INTEGER,
   phase VARCHAR(20) DEFAULT 'discuss' CHECK (phase IN ('discuss', 'arrange', 'reveal', 'result')),
   player_order TEXT[], -- JSON array of player IDs
-  correct_order TEXT[], -- JSON array of player IDs in correct order
   started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   ended_at TIMESTAMP WITH TIME ZONE
 );
