@@ -13,6 +13,7 @@ interface RevealRealOrderProps {
   playerNumbers: PlayerNumber[]
   onBackToTitle: () => void
   onUpdatePlayerLife?: (playerId: string, lifeChange: number) => Promise<void>
+  onStartNextGame?: () => Promise<void>
 }
 
 interface PlayerOrderInfo {
@@ -27,7 +28,8 @@ export default function RevealRealOrder({
   players,
   playerNumbers,
   onBackToTitle,
-  onUpdatePlayerLife
+  onUpdatePlayerLife,
+  onStartNextGame
 }: RevealRealOrderProps) {
   const [orderedPlayers, setOrderedPlayers] = useState<PlayerOrderInfo[]>([])
   const [allRevealed, setAllRevealed] = useState(false)
@@ -125,9 +127,18 @@ export default function RevealRealOrder({
     return worstPlayer
   }
 
-  const goNextGame = () => {
-    // 次のゲームに進む処理を実装
-    console.log("次のゲームに進みます")
+  const goNextGame = async () => {
+    if (!onStartNextGame) {
+      console.error('onStartNextGame関数が提供されていません');
+      return;
+    }
+
+    try {
+      console.log("次のゲームに進みます");
+      await onStartNextGame();
+    } catch (error) {
+      console.error('次のゲーム開始エラー:', error);
+    }
   }
 
   const goFinalResult = () => {
@@ -266,23 +277,21 @@ export default function RevealRealOrder({
               </Button>
             )}
 
-            {allAreRevealed && (
+            {allAreRevealed && currentPlayer?.is_host && (
               <Button
                 onClick={goNextGame}
-                variant="outline"
-                className="flex-1 flex items-center justify-center gap-2"
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center gap-2"
               >
-                <EyeOff className="h-4 w-4" />
                 次のゲームに進む
               </Button>
             )}
+
             {allAreRevealed && (
               <Button
                 onClick={goFinalResult}
                 variant="outline"
                 className="flex-1 flex items-center justify-center gap-2"
               >
-                <EyeOff className="h-4 w-4" />
                 ゲームを終了する
               </Button>
             )}

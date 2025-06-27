@@ -17,6 +17,7 @@ interface GameActions {
   updateGamePhase: (phase: string) => Promise<void>;
   savePlayerOrder: (arrangedPlayerIds: string[]) => Promise<void>;
   updatePlayerLife: (playerId: string, lifeChange: number) => Promise<void>;
+  startNextGame: () => Promise<void>;
 }
 
 interface GameState {
@@ -678,6 +679,95 @@ export const useGameStore = create<GameStore>((set, get) => ({
       console.log('点数更新成功:', data);
     } catch (error) {
       console.error('点数更新に失敗しました:', error);
+      throw error;
+    }
+  },
+
+  // 次のゲームを開始する関数
+  startNextGame: async () => {
+    const { currentRoom, currentPlayer, players, currentGame } = get();
+    if (!currentRoom || !currentPlayer?.is_host || !currentGame) return;
+
+    set({ isLoading: true, error: null });
+
+    try {
+      // 現在のラウンド数を取得して+1
+      const nextRoundNumber = currentGame.round_number + 1;
+
+      // ルームの現在のラウンドを更新
+      await supabase
+        .from('rooms')
+        .update({ current_round: nextRoundNumber })
+        .eq('id', currentRoom.id);
+
+      // 前回と同じジャンルから新しいトピックを選択
+      const { data: currentTopic } = await supabase
+        .from('topics')
+        .select()
+        .eq('id', currentGame.topic_id)
+        .single();
+
+      if (!currentTopic) throw new Error('現在のトピックが見つかりません');
+
+      // 同じカテゴリの他のトピックを取得
+      const { data: availableTopics, error: topicsError } = await supabase
+        .from('topics')
+        .select()
+        .eq('category', currentTopic.category)
+        .neq('id', currentGame.topic_id); // 現在のトピックは除外
+
+      if (topicsError) throw topicsError;
+      if (!availableTopics || availableTopics.length === 0) {
+        throw new Error('利用可能なトピックがありません');
+      }
+
+      // ランダムに新しいトピックを選択
+      const randomIndex = Math.floor(Math.random() * availableTopics.length);
+      const newTopic = availableTopics[randomIndex];
+
+      // 新しいゲームを作成
+      const { data: newGame, error: gameError } = await supabase
+        .from('games')
+        .insert({
+          room_id: currentRoom.id,
+          round_number: nextRoundNumber,
+          topic_id: newTopic.id,
+          topic_number: newTopic.number,
+          phase: 'discuss',
+          player_order: players.map(p => p.id)
+        })
+        .select()
+        .single();
+      if (gameError) throw gameError;
+
+      // 各プレイヤーに新しい数字を割り当て
+      const playerNumbersToInsert = players.map(player => ({
+        game_id: newGame.id,
+        player_id: player.id,
+        number: Math.floor(Math.random() * 100) + 1,
+        position: null,
+        match_word: null
+      }));
+
+      const { data: insertedPlayerNumbers, error: numbersError } = await supabase
+        .from('player_numbers')
+        .insert(playerNumbersToInsert)
+        .select();
+      if (numbersError) throw numbersError;
+
+      // 状態を更新
+      set({
+        currentGame: newGame,
+        currentTopic: newTopic,
+        playerNumbers: insertedPlayerNumbers || [],
+        isLoading: false,
+      });
+
+      console.log('次のゲームを開始しました:', newGame);
+      
+    } catch (error) {
+      console.error("次のゲーム開始エラー:", error);
+      set({ error: error instanceof Error ? error.message : '次のゲームの開始に失敗しました', isLoading: false });
       throw error;
     }
   },

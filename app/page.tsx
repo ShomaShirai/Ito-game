@@ -33,6 +33,7 @@ export default function ItoGame() {
     unsubscribeFromRoom,
     isLoading,
     error,
+    startNextGame,
   } = useGameStore()
 
   // チームを作成
@@ -178,6 +179,7 @@ export default function ItoGame() {
             onSendMatchWord={sendMatchWord}
             onSavePlayerOrder={savePlayerOrder}
             onUpdatePlayerLife={updatePlayerLife}
+            onStartNextGame={startNextGame}
           />
         )}
 

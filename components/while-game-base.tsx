@@ -18,6 +18,7 @@ interface WhileGameBaseProps {
   onSendMatchWord: (matchWord: string) => Promise<void>
   onSavePlayerOrder: (arrangedPlayerIds: string[]) => Promise<void>
   onUpdatePlayerLife?: (playerId: string, lifeChange: number) => Promise<void>
+  onStartNextGame?: () => Promise<void>
 }
 
 export default function WhileGameBase({
@@ -30,6 +31,7 @@ export default function WhileGameBase({
   onSendMatchWord,
   onSavePlayerOrder,
   onUpdatePlayerLife,
+  onStartNextGame
 }: WhileGameBaseProps) {
   const [currentPhase, setCurrentPhase] = useState<string>('discuss')
 
@@ -73,6 +75,7 @@ export default function WhileGameBase({
             playerNumbers={playerNumbers}
             onBackToTitle={onBackToTitle}
             onUpdatePlayerLife={onUpdatePlayerLife}
+            onStartNextGame={onStartNextGame}
           />
         )
       
