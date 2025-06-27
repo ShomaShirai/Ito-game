@@ -34,7 +34,6 @@ export default function RevealRealOrder({
   const [orderedPlayers, setOrderedPlayers] = useState<PlayerOrderInfo[]>([])
   const [scoreProcessed, setScoreProcessed] = useState(false)
   const [allAreRevealed, setAllAreRevealed] = useState(false)
-  // const [isChangeLife, setIsChangeLife] = useState(false)
 
   // プレイヤーを並び替えた順番でソート
   useEffect(() => {
@@ -69,7 +68,6 @@ export default function RevealRealOrder({
         }
       })
     })
-    // setScoreProcessed(false) // 新しいデータが来たら点数処理をリセット
   }, [players, playerNumbers])
   
   useEffect(() => {
@@ -110,11 +108,13 @@ export default function RevealRealOrder({
     if (worstPlayers.length > 0) {
       try {
         // 複数のプレイヤーの点数を同時に減算
-        await Promise.all(
-          worstPlayers.map(player => 
-            onUpdatePlayerLife(player.player.id, -1)
+        if (currentPlayer?.is_host) {
+          await Promise.all(
+            worstPlayers.map(player => 
+              onUpdatePlayerLife(player.player.id, -1)
+            )
           )
-        )
+        }
         console.log(`${worstPlayers.map(p => p.player.name).join(', ')}の点数を-1しました`)
       } catch (error) {
         console.error('点数更新エラー:', error)

@@ -550,6 +550,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isLoading: false,
       });
 
+      // 新しいゲームの購読を開始
+      get().subscribeToGamePlay(currentRoom.id);
+
       console.log('次のゲームを開始しました:', newGame);
       
     } catch (error) {
@@ -665,7 +668,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
                   
                   if (!numbersError && playerNumbers) {
                     console.log('プレイヤー数字情報取得成功:', playerNumbers);
-                    
+
                     set({
                       currentGame: game,
                       currentTopic: topic,
@@ -714,12 +717,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
               
               if (!numbersError && playerNumbers) {
                 console.log('新ゲームプレイヤー数字情報取得成功:', playerNumbers);
-                
+
                 set({
                   currentGame: newGame,
                   currentTopic: topic,
                   playerNumbers: playerNumbers,
                 });
+
+                // 新しいゲームIDで購読を再開
+                get().subscribeToGamePlay(roomId);
 
                 console.log('次のゲームに画面更新完了');
               }
@@ -743,17 +749,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // ゲーム中のリアルタイム購読を行う関数
   subscribeToGamePlay: (roomId: string) => {
-    const { gamePlayChannel, currentGame } = get();
+    const { currentGame } = get();
     
     if (!currentGame) {
       console.log('currentGameが存在しないため購読をスキップ');
       return () => {};
     }
     
-    console.log('ゲーム中購読開始:', roomId, 'フェーズ:', currentGame.phase);
+    console.log('ゲーム中購読開始:', roomId, 'ゲームID:', currentGame.id, 'フェーズ:', currentGame.phase);
     
     const channel = supabase
-      .channel(`game-play-${roomId}-${Date.now()}`)
+      .channel(`game-play-${roomId}-${currentGame.id}-${Date.now()}`) // ゲームIDも含めて一意性を保証
       .on(
         'postgres_changes',
         {
@@ -765,15 +771,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
         async (payload) => {
           if (payload.eventType === 'UPDATE') {
             const updatedGame = payload.new as Game;
-            console.log('ゲーム状態更新:', {
-              oldPhase: get().currentGame?.phase,
-              newPhase: updatedGame.phase
-            });
+            const { currentGame: storeCurrentGame } = get();
             
-            set({ currentGame: updatedGame });
-            
-            if (updatedGame.phase) {
-              console.log('フェーズ変更:', updatedGame.phase);
+            // 現在のゲームIDと一致する場合のみ更新
+            if (storeCurrentGame && updatedGame.id === storeCurrentGame.id) {
+              console.log('ゲーム状態更新:', {
+                gameId: updatedGame.id,
+                oldPhase: storeCurrentGame.phase,
+                newPhase: updatedGame.phase
+              });
+              
+              set({ currentGame: updatedGame });
             }
           }
         }
@@ -792,6 +800,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             const { playerNumbers, currentPlayer, currentGame } = get();
             
             console.log('プレイヤー数字更新:', {
+              gameId: currentGame?.id,
               playerId: updatedPlayerNumber.player_id,
               matchWord: updatedPlayerNumber.match_word,
               position: updatedPlayerNumber.position,
@@ -820,13 +829,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       )
       .subscribe((status) => {
-        console.log('ゲーム中購読状態:', status);
+        console.log('ゲーム中購読状態:', status, 'ゲームID:', currentGame.id);
       });
 
     set({ gamePlayChannel: channel });
 
     return () => {
-      console.log('ゲーム中購読停止');
+      console.log('ゲーム中購読停止:', currentGame.id);
       supabase.removeChannel(channel);
     };
   },
